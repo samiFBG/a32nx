@@ -190,7 +190,6 @@ class FMCMainDisplay extends BaseAirliners {
         this.efisSymbols = new Fmgc.EfisSymbols(this.flightPlanManager, this.guidanceController);
 
         Fmgc.initFmgcLoop();
-        Tcas.initTcasLoop();
 
         this.guidanceController.init();
         this.efisSymbols.init();
@@ -523,7 +522,6 @@ class FMCMainDisplay extends BaseAirliners {
         super.onUpdate(_deltaTime);
 
         Fmgc.updateFmgcLoop(_deltaTime);
-        Tcas.updateTcasLoop(_deltaTime);
 
         if (this._debug++ > 180) {
             this._debug = 0;
