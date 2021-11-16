@@ -9,13 +9,6 @@ import { EfisSide, Mode, NdTraffic } from '@shared/NavigationDisplay';
 import { usePersistentProperty } from '@instruments/common/persistence';
 import { MapParameters } from '../utils/MapParameters';
 
-interface OffTraffic {
-    distance: number;
-    relativeAlt: number;
-    vertSpeed: number;
-    intrusionLevel: number;
-}
-
 export type TcasProps = {
     side: EfisSide,
     airTraffic: NdTraffic[],
