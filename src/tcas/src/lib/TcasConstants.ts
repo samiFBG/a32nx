@@ -1,6 +1,7 @@
 /* eslint-disable camelcase */
 const REFRESH_RATE: number = 1000; // Time between refreshes in ms
 const TRACKING_MAX: number = 40; // # max contacts tracked - AMM 34-43-00:6a
+const DISPLAY_MAX: number = 8; // # max contacts tracked - usually configurable by PIN program
 const MEMORY_MAX: number = 200; // Max history before culling
 const MIN_VS: number = -6000;
 const MAX_VS: number = 6000;
@@ -635,6 +636,7 @@ const RA_VARIANTS: { [key: string] : RaParams } = {
 export const TCAS_CONST: { [key: string] : any } = {
     REFRESH_RATE,
     TRACKING_MAX,
+    DISPLAY_MAX,
     MEMORY_MAX,
     MIN_VS,
     INHIBIT_CLB_RA, // for all climb RA's

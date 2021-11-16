@@ -68,6 +68,8 @@ export class TcasTraffic {
 
     onGround: boolean;
 
+    groundSpeed: number;
+
     heading: number;
 
     relativeAlt: number;
@@ -103,6 +105,7 @@ export class TcasTraffic {
         this.heading = tf.heading;
         this.slantDistance = MathUtils.computeDistance3D([tf.lat, tf.lon, tf.alt * 3.281], [ppos.lat, ppos.long, alt]);
         this.onGround = false;
+        this.groundSpeed = 0;
         this.isDisplayed = false;
         this.vertSpeed = 0;
         this.closureRate = 0;
@@ -331,9 +334,11 @@ export class TcasComputer implements TcasComponent {
                     traffic = new TcasTraffic(tf, this.ppos, this.pressureAlt);
                     this.airTraffic.push(traffic);
                 }
+
                 traffic.alive = true;
                 const newAlt = tf.alt * 3.281;
                 traffic.vertSpeed = (newAlt - traffic.alt) / (_deltaTime / 1000) * 60; // feet per minute
+                traffic.groundSpeed = Math.abs(Avionics.Utils.computeGreatCircleDistance({ lat: tf.lat, long: tf.lon }, { lat: traffic.lat, long: traffic.lon }) / (_deltaTime / 1000) * 3600);
                 const newSlantDist = MathUtils.computeDistance3D([traffic.lat, traffic.lon, traffic.alt], [this.ppos.lat, this.ppos.long, this.pressureAlt]);
                 const newClosureRate = (traffic.slantDistance - newSlantDist) / (_deltaTime / 1000) * 3600; // knots per hour
                 traffic.closureAccel = (newClosureRate - traffic.closureRate) / (_deltaTime / 1000);
@@ -386,16 +391,18 @@ export class TcasComputer implements TcasComponent {
             traffic.onGround = onGround;
             let isDisplayed = false;
             if (!onGround) {
-                if (this.tcasThreat === TcasThreat.THREAT) {
-                    if (traffic.intrusionLevel >= TaRaIntrusion.TA
-                        && traffic.relativeAlt >= TCAS.THREAT[TcasThreat.THREAT][Limits.MIN]
-                        && traffic.relativeAlt <= TCAS.THREAT[TcasThreat.THREAT][Limits.MAX]) {
-                        isDisplayed = true;
-                    }
-                } else if (this.tcasThreat) {
-                    if (traffic.relativeAlt >= TCAS.THREAT[this.tcasThreat][Limits.MIN]
-                        && traffic.relativeAlt <= TCAS.THREAT[this.tcasThreat][Limits.MAX]) {
-                        isDisplayed = true;
+                if (traffic.groundSpeed >= 30) { // Workaround for MSFS live traffic, TODO: add option to disable
+                    if (this.tcasThreat === TcasThreat.THREAT) {
+                        if (traffic.intrusionLevel >= TaRaIntrusion.TA
+                                && traffic.relativeAlt >= TCAS.THREAT[TcasThreat.THREAT][Limits.MIN]
+                                && traffic.relativeAlt <= TCAS.THREAT[TcasThreat.THREAT][Limits.MAX]) {
+                            isDisplayed = true;
+                        }
+                    } else if (this.tcasThreat) {
+                        if (traffic.relativeAlt >= TCAS.THREAT[this.tcasThreat][Limits.MIN]
+                                && traffic.relativeAlt <= TCAS.THREAT[this.tcasThreat][Limits.MAX]) {
+                            isDisplayed = true;
+                        }
                     }
                 }
             }
@@ -975,7 +982,7 @@ export class TcasComputer implements TcasComponent {
             .sort((a, b) => b.intrusionLevel - a.intrusionLevel || a.raTau - b.raTau || a.taTau - b.taTau || a.slantDistance - b.slantDistance);
             // Limit number of contacts displayed to 8
         sentAirTraffic.forEach((traffic: TcasTraffic, index) => {
-            if (index >= 8) return;
+            if (index >= TCAS.DISPLAY_MAX) return;
             this.sendAirTraffic.push(new NDTcasTraffic(traffic));
         });
         this.raTraffic.forEach((tf) => {
