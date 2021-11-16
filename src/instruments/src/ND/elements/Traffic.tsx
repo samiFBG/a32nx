@@ -140,31 +140,22 @@ const TrafficIndicator: FC<TrafficProp> = memo(({ x, y, relativeAlt, vertSpeed, 
                 {intrusionLevel === TaRaIntrusion.TA && <image x={0} y={0} width={45} height={32} xlinkHref="/Images/ND/TRAFFIC_TA.svg" />}
                 {intrusionLevel === TaRaIntrusion.RA && <image x={0} y={0} width={45} height={32} xlinkHref="/Images/ND/TRAFFIC_RA.svg" />}
                 <g>
-                    <text x="36.165964" y={relAltY} fill={color} height={1.25} strokeWidth={0.3} textAnchor="end" xmlSpace="preserve">
-                        <tspan x="19.165966" y={relAltY} fill={color} fontSize="20px" strokeWidth={0.3} textAnchor="middle">
+                    <text x="30" y={relAltY} fill={color} height={1.25} strokeWidth={0.3} textAnchor="end" xmlSpace="preserve">
+                        <tspan x="15.4" y={relAltY} fill={color} fontSize="20px" strokeWidth={0.3} textAnchor="middle">
                             {`${relativeAlt > 0 ? '+' : '-'}${Math.abs(relativeAlt) < 10 ? '0' : ''}${Math.abs(relativeAlt)}`}
                         </tspan>
                     </text>
-                    {(vertSpeed >= 500 || vertSpeed <= -500) && (
-                        <path d="m38.3 23.2v-13.5" fill="none" stroke={color} strokeWidth={2} />
-                    )}
                     {(vertSpeed <= -500) && (
-                        <path
-                            d="m38.3 23.2-2.05-1.42 2.05 5.66 2.05-5.66z"
-                            fill={color}
-                            stroke={color}
-                            fillRule="evenodd"
-                            strokeWidth=".2pt"
-                        />
+                        <>
+                            <path fill="none" stroke={color} strokeWidth={2.75} d="M38.3,24V6.6" />
+                            <path fill={color} stroke="none" fillRule="evenodd" d="M34,18l3.8,9.6h1l3.8-9.6H34z" />
+                        </>
                     )}
                     {(vertSpeed >= 500) && (
-                        <path
-                            d="m38.3 9.7 2.05 1.42-2.05-5.66-2.05 5.66z"
-                            fill={color}
-                            stroke={color}
-                            fillRule="evenodd"
-                            strokeWidth=".2pt"
-                        />
+                        <>
+                            <path fill="none" stroke={color} strokeWidth={2.75} d="M38.3,9.5v17.4" />
+                            <path fill={color} stroke="none" fillRule="evenodd" d="M42.6,15.5l-3.8-9.6h-1L34,15.5H42.6z" />
+                        </>
                     )}
                 </g>
             </Layer>
