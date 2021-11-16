@@ -132,7 +132,7 @@ export const Traffic: FC<TcasProps> = ({ mode, mapParams }) => {
                 )}
                 <text x={290} y={-200} fill="#ffffff" fontSize="12px" height={1.25} strokeWidth={0.3} textAnchor="middle" xmlSpace="preserve">
                     <tspan fill="#ffffff">
-                        {`Sensitivity: ${sensitivity}`}
+                        {`SENSITIVITY: ${sensitivity}`}
                     </tspan>
                     <tspan x={290} dy={15} fill="#ffffff">
                         {'DMOD: '}
@@ -190,9 +190,9 @@ export const Traffic: FC<TcasProps> = ({ mode, mapParams }) => {
                         ID={tf.ID}
                         hidden={tf.hidden}
                         seen={tf.seen}
-                        raTau={tf.raTau < 200 ? tf.raTau?.toFixed(0) : undefined}
-                        taTau={tf.taTau < 200 ? tf.taTau?.toFixed(0) : undefined}
-                        vTau={tf.vTau < 200 ? tf.vTau?.toFixed(0) : undefined}
+                        raTau={tf.raTau && tf.raTau < 200 ? tf.raTau?.toFixed(0) : undefined}
+                        taTau={tf.taTau && tf.taTau < 200 ? tf.taTau?.toFixed(0) : undefined}
+                        vTau={tf.vTau && tf.vTau < 200 ? tf.vTau?.toFixed(0) : undefined}
                         closureAccel={tf.closureAccel?.toFixed(1)}
                         closureRate={tf.closureRate?.toFixed(1)}
 
@@ -278,7 +278,7 @@ type TrafficPropDebug = {
     relativeAlt: number,
     vertSpeed: number,
     intrusionLevel: TaRaIntrusion,
-    ID: number,
+    ID: string,
     hidden: boolean | undefined,
     seen: number | undefined,
     raTau: string | undefined,
@@ -314,16 +314,16 @@ const TrafficIndicatorDebug: FC<TrafficPropDebug> = memo(({ x, y, relativeAlt, v
                 {intrusionLevel === TaRaIntrusion.TA && <image opacity={hidden ? 0.125 : 1.0} x={0} y={0} width={45} height={32} xlinkHref="/Images/ND/TRAFFIC_TA.svg" />}
                 {intrusionLevel === TaRaIntrusion.RA && <image opacity={hidden ? 0.125 : 1.0} x={0} y={0} width={45} height={32} xlinkHref="/Images/ND/TRAFFIC_RA.svg" />}
                 <g>
-                    <text x="30" y={relAltY} fillOpacity={hidden ? 0.125 : 1} fill={color} height={1.25} strokeWidth={0.3} textAnchor="end" xmlSpace="preserve">
-                        <tspan x="15.4" y={relAltY} fill={color} fontSize="20px" strokeWidth={0.3} textAnchor="middle">
+                    <text x={30} y={relAltY} fillOpacity={hidden ? 0.125 : 1} fill={color} height={1.25} strokeWidth={0.3} textAnchor="end" xmlSpace="preserve">
+                        <tspan x={17.25} y={relAltY} fill={color} fontSize="20px" strokeWidth={0.3} textAnchor="middle">
                             {`${relativeAlt > 0 ? '+' : '-'}${Math.abs(relativeAlt) < 10 ? '0' : ''}${Math.abs(relativeAlt)}`}
                         </tspan>
                         {!hidden && (
                             <>
-                                <tspan x="15.4" y={debugY1} fillOpacity={0.6} fill={color} fontSize="8px" strokeWidth={0.2} textAnchor="middle">
+                                <tspan x={17.25} y={debugY1} fillOpacity={0.6} fill={color} fontSize="8px" strokeWidth={0.2} textAnchor="middle">
                                     {`${ID} [${closureRate}|${closureAccel}] <${seen}>`}
                                 </tspan>
-                                <tspan x="15.4" y={debugY2} fill={color} fontSize="12px" strokeWidth={0.2} textAnchor="middle">
+                                <tspan x={17.25} y={debugY2} fill={color} fontSize="12px" strokeWidth={0.2} textAnchor="middle">
                                     {`R ${raTau || '-'} V ${vTau || '-'} T ${taTau || '-'}`}
                                 </tspan>
                             </>
