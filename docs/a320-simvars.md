@@ -2015,6 +2015,7 @@ In the variables below, {number} should be replaced with one item in the set: { 
 
 - A32NX_SWITCH_TCAS_Position
   - Enum
+  - Read-Only
   - Selected TCAS Mode
       Description | Value
       --- | ---
@@ -2023,7 +2024,8 @@ In the variables below, {number} should be replaced with one item in the set: { 
       TA/RA | 2
 
 - A32NX_SWITCH_ATC
-  - EnumTC
+  - Enum
+  - Read-Only
   - Selected active transponder (XPDR1/2)
       Description | Value
       --- | ---
@@ -2032,6 +2034,7 @@ In the variables below, {number} should be replaced with one item in the set: { 
 
 - A32NX_SWITCH_TCAS_Traffic_Position
   - Enum
+  - Read-Only
   - Selected TCAS Display Mode
       Description | Value
       --- | ---
@@ -2042,6 +2045,7 @@ In the variables below, {number} should be replaced with one item in the set: { 
 
 - A32NX_TCAS_MODE
   - Enum
+  - Read-Only
   - Whether TCAS has been set to standby, TA Only or TA/RA Mode (see ATC panel)
   Description | Value
       --- | ---
@@ -2049,8 +2053,14 @@ In the variables below, {number} should be replaced with one item in the set: { 
       TA | 1
       TA/RA | 2
 
+- A32NX_TCAS_SENSITIVITY
+  - Number
+  - Read-Only
+  - Current sensitivity level
+
 - A32NX_TCAS_STATE
   - Enum
+  - Read-Only
   - Currently active traffic/resolution advisory state
       Description | Value
       --- | ---
@@ -2060,10 +2070,12 @@ In the variables below, {number} should be replaced with one item in the set: { 
 
 - A32NX_TCAS_RA_CORRECTIVE
   - boolean
+  - Read-Only
   - Active RA is corrective?
 
 - A32NX_TCAS_VSPEED_RED:{number}
     - Feet per minute
+    - Read-Only
 	- Lower and upper red vertical speed range of current active RA
     - {number}
         - 0
@@ -2071,6 +2083,7 @@ In the variables below, {number} should be replaced with one item in the set: { 
 
 - A32NX_TCAS_VSPEED_GREEN:{number}
     - Feet per minute
+    - Read-Only
 	- Lower and upper green vertical speed range of current active RA
     - {number}
         - 0

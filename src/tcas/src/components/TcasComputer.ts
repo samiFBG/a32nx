@@ -8,6 +8,7 @@ import { Arinc429Word } from '@shared/arinc429';
 import { TcasComponent } from '@tcas/lib/TcasComponent';
 import { LatLongData } from '@typings/fs-base-ui/html_ui/JS/Types';
 import { LocalSimVar } from '@shared/simvar';
+import { NXDataStore } from '@shared/persistence';
 import {
     TCAS_CONST as TCAS, JS_NPCPlane,
     TcasState, TcasMode, XpdrMode, TcasThreat,
@@ -51,12 +52,42 @@ export class NDTcasTraffic {
         this.intrusionLevel = traffic.intrusionLevel;
     }
 }
+
+export class NDTcasDebugTraffic extends NDTcasTraffic {
+    seen: number;
+
+    hidden: boolean;
+
+    raTau: number;
+
+    taTau: number;
+
+    vTau: number;
+
+    closureRate: number;
+
+    closureAccel: number;
+
+    constructor(traffic: TcasTraffic) {
+        super(traffic);
+        this.seen = traffic.seen;
+        this.hidden = false;
+        this.raTau = traffic.raTau;
+        this.taTau = traffic.taTau;
+        this.vTau = traffic.vTau;
+        this.closureRate = traffic.closureRate;
+        this.closureAccel = traffic.closureAccel;
+    }
+}
+
 export class TcasTraffic {
     alive: boolean;
 
     ID: string;
 
     // name: string;
+
+    seen: number;
 
     lat: number;
 
@@ -96,6 +127,7 @@ export class TcasTraffic {
 
     constructor(tf: JS_NPCPlane, ppos: LatLongData, alt: number) {
         this.alive = true;
+        this.seen = 0;
         this.ID = tf.uId.toFixed(0);
         // this.name = `npc-airplane-${tf.uId.toFixed(0)}`;
         this.lat = tf.lat;
@@ -103,7 +135,7 @@ export class TcasTraffic {
         this.alt = tf.alt * 3.281;
         this.relativeAlt = tf.alt * 3.281 - alt;
         this.heading = tf.heading;
-        this.slantDistance = MathUtils.computeDistance3D([tf.lat, tf.lon, tf.alt * 3.281], [ppos.lat, ppos.long, alt]);
+        this.slantDistance = MathUtils.computeDistance3D(tf.lat, tf.lon, tf.alt * 3.281, ppos.lat, ppos.long, alt);
         this.onGround = false;
         this.groundSpeed = 0;
         this.isDisplayed = false;
@@ -136,6 +168,8 @@ export class TcasComputer implements TcasComponent {
         this.recListener.trigger('JS_BIND_BINGMAP', 'nxMap', false);
     });
 
+    private debug: boolean;
+
     private sendListener = RegisterViewListener('JS_LISTENER_SIMVARS');
 
     private updateThrottler: UpdateThrottler; // Utility to restrict updates
@@ -144,7 +178,7 @@ export class TcasComputer implements TcasComponent {
 
     private raTraffic: TcasTraffic[]; // Traffic with RA
 
-    private sendAirTraffic: NDTcasTraffic[];
+    private sendAirTraffic: (NDTcasTraffic|NDTcasDebugTraffic)[];
 
     private activeXpdr: number; // Active XPDR
 
@@ -186,7 +220,7 @@ export class TcasComputer implements TcasComponent {
 
     private trueHeading: number;
 
-    private sensitivity: number;
+    private sensitivity: LocalSimVar<number>;
 
     private activeRa: ResAdvisory | null; // Currently Active RA
 
@@ -211,6 +245,7 @@ export class TcasComputer implements TcasComponent {
 
     init(): void {
         SimVar.SetSimVarValue('L:A32NX_TCAS_STATE', 'Enum', 0);
+        this.debug = false;
         this.tcasPower = false;
         this.tcasMode = new LocalSimVar('L:A32NX_TCAS_MODE', 'Enum');
         this.tcasState = new LocalSimVar('L:A32NX_TCAS_STATE', 'Enum');
@@ -219,7 +254,8 @@ export class TcasComputer implements TcasComponent {
         this.correctiveRa = new LocalSimVar('L:A32NX_TCAS_RA_CORRECTIVE', 'bool');
         this.airTraffic = [];
         this.raTraffic = [];
-        this.sensitivity = 1;
+        this.sensitivity = new LocalSimVar('L:A32NX_TCAS_SENSITIVITY', 'number');
+        this.sensitivity.setVar(1);
         this.updateThrottler = new UpdateThrottler(TCAS.REFRESH_RATE); // P5566074 pg 11:45
         this.inhibitions = Inhibit.NONE;
         this.ppos = { lat: NaN, long: NaN };
@@ -234,6 +270,7 @@ export class TcasComputer implements TcasComponent {
 
     private updateVars(): void {
         // Note: these values are calculated/not used in the real TCAS computer, here we just read SimVars
+        this.debug = NXDataStore.get('TCAS_DEBUG', '0') !== '0';
         this.verticalSpeed = SimVar.GetSimVarValue('VERTICAL SPEED', 'feet per minute');
         this.ppos.lat = SimVar.GetSimVarValue('PLANE LATITUDE', 'degree latitude');
         this.ppos.long = SimVar.GetSimVarValue('PLANE LONGITUDE', 'degree longitude');
@@ -302,19 +339,19 @@ export class TcasComputer implements TcasComponent {
     private updateSensitivity(): void {
         if (this.activeRa.info === null) {
             if (this.inhibitions === Inhibit.ALL_RA || this.inhibitions === Inhibit.ALL_RA_AURAL_TA) {
-                this.sensitivity = 2;
+                this.sensitivity.setVar(2);
             } else if (this.radioAlt > TCAS.SENSE[3][Limits.MIN] && this.radioAlt <= TCAS.SENSE[3][Limits.MAX]) {
-                this.sensitivity = 3;
+                this.sensitivity.setVar(3);
             } else if (this.pressureAlt > TCAS.SENSE[4][Limits.MIN] && this.pressureAlt <= TCAS.SENSE[4][Limits.MAX]) {
-                this.sensitivity = 4;
+                this.sensitivity.setVar(4);
             } else if (this.pressureAlt > TCAS.SENSE[5][Limits.MIN] && this.pressureAlt <= TCAS.SENSE[5][Limits.MAX]) {
-                this.sensitivity = 5;
+                this.sensitivity.setVar(5);
             } else if (this.pressureAlt > TCAS.SENSE[6][Limits.MIN] && this.pressureAlt <= TCAS.SENSE[6][Limits.MAX]) {
-                this.sensitivity = 6;
+                this.sensitivity.setVar(6);
             } else if (this.pressureAlt > TCAS.SENSE[7][Limits.MIN] && this.pressureAlt <= TCAS.SENSE[7][Limits.MAX]) {
-                this.sensitivity = 7;
+                this.sensitivity.setVar(7);
             } else {
-                this.sensitivity = 8;
+                this.sensitivity.setVar(8);
             }
         }
     }
@@ -336,10 +373,11 @@ export class TcasComputer implements TcasComponent {
                 }
 
                 traffic.alive = true;
+                traffic.seen = Math.min(traffic.seen + 1, 10);
                 const newAlt = tf.alt * 3.281;
                 traffic.vertSpeed = (newAlt - traffic.alt) / (_deltaTime / 1000) * 60; // feet per minute
-                traffic.groundSpeed = Math.abs(Avionics.Utils.computeGreatCircleDistance({ lat: tf.lat, long: tf.lon }, { lat: traffic.lat, long: traffic.lon }) / (_deltaTime / 1000) * 3600);
-                const newSlantDist = MathUtils.computeDistance3D([traffic.lat, traffic.lon, traffic.alt], [this.ppos.lat, this.ppos.long, this.pressureAlt]);
+                traffic.groundSpeed = Math.abs(MathUtils.computeGreatCircleDistance(tf.lat, tf.lon, traffic.lat, traffic.lon) / (_deltaTime / 1000) * 3600);
+                const newSlantDist = MathUtils.computeDistance3D(traffic.lat, traffic.lon, traffic.alt, this.ppos.lat, this.ppos.long, this.pressureAlt);
                 const newClosureRate = (traffic.slantDistance - newSlantDist) / (_deltaTime / 1000) * 3600; // knots per hour
                 traffic.closureAccel = (newClosureRate - traffic.closureRate) / (_deltaTime / 1000);
                 traffic.closureRate = newClosureRate;
@@ -351,8 +389,8 @@ export class TcasComputer implements TcasComponent {
                 traffic.heading = tf.heading;
                 traffic.relativeAlt = newAlt - this.pressureAlt;
 
-                let taTau = (traffic.slantDistance - TCAS.DMOD[this.sensitivity][TaRaIndex.TA] ** 2 / traffic.slantDistance) / traffic.closureRate * 3600;
-                let raTau = (traffic.slantDistance - TCAS.DMOD[this.sensitivity][TaRaIndex.RA] ** 2 / traffic.slantDistance) / traffic.closureRate * 3600;
+                let taTau = (traffic.slantDistance - TCAS.DMOD[this.sensitivity.getVar()][TaRaIndex.TA] ** 2 / traffic.slantDistance) / traffic.closureRate * 3600;
+                let raTau = (traffic.slantDistance - TCAS.DMOD[this.sensitivity.getVar()][TaRaIndex.RA] ** 2 / traffic.slantDistance) / traffic.closureRate * 3600;
                 let vTau = traffic.relativeAlt / (this.verticalSpeed - traffic.vertSpeed) * 60;
 
                 if (raTau < 0) {
@@ -407,20 +445,16 @@ export class TcasComputer implements TcasComponent {
                 }
             }
 
-            this._pposLatLong.lat = this.ppos.lat;
-            this._pposLatLong.long = this.ppos.long;
-            this._trafficPpos.lat = traffic.lat;
-            this._trafficPpos.long = traffic.lon;
-            const horizontalDistance = Avionics.Utils.computeGreatCircleDistance(this._pposLatLong, this._trafficPpos);
+            const horizontalDistance = MathUtils.computeGreatCircleDistance(this.ppos.lat, this.ppos.long, traffic.lat, traffic.lon);
 
             if (isDisplayed) {
-                const bearing = Avionics.Utils.computeGreatCircleHeading(this._pposLatLong, this._trafficPpos) - this.trueHeading + 90;
+                const bearing = MathUtils.computeGreatCircleHeading(this.ppos.lat, this.ppos.long, traffic.lat, traffic.lon) - this.trueHeading + 90;
                 const x = horizontalDistance * Math.cos(bearing * Math.PI / 180);
                 const y = horizontalDistance * Math.sin(bearing * Math.PI / 180);
 
                 // TODO: Extend at higher altitudes
                 // x^2 / xLim ^2 + y^2 / yLim ^2 <= 1
-                if (!MathUtils.isInEllipse(x, y, TCAS.RANGE.side, TCAS.RANGE.forward[Limits.MIN], TCAS.RANGE.side, TCAS.RANGE.back)
+                if (!MathUtils.pointInEllipse(x, y, TCAS.RANGE.side, TCAS.RANGE.forward[Limits.MIN], TCAS.RANGE.side, TCAS.RANGE.back)
                     || Math.abs(traffic.relativeAlt) > TCAS.RANGE.alt) {
                     isDisplayed = false;
                     traffic.taTau = Infinity;
@@ -432,21 +466,21 @@ export class TcasComputer implements TcasComponent {
             const intrusionLevel: TaRaIntrusion[] = [0, 0];
 
             // Perform range test
-            if (traffic.raTau < TCAS.TAU[this.sensitivity][TaRaIndex.RA]
-                    || traffic.slantDistance < TCAS.DMOD[this.sensitivity][TaRaIndex.RA]) {
+            if (traffic.raTau < TCAS.TAU[this.sensitivity.getVar()][TaRaIndex.RA]
+                    || traffic.slantDistance < TCAS.DMOD[this.sensitivity.getVar()][TaRaIndex.RA]) {
                 intrusionLevel[Intrude.RANGE] = TaRaIntrusion.RA;
-            } else if (traffic.taTau < TCAS.TAU[this.sensitivity][TaRaIndex.TA]
-                    || traffic.slantDistance < TCAS.DMOD[this.sensitivity][TaRaIndex.TA]) {
+            } else if (traffic.taTau < TCAS.TAU[this.sensitivity.getVar()][TaRaIndex.TA]
+                    || traffic.slantDistance < TCAS.DMOD[this.sensitivity.getVar()][TaRaIndex.TA]) {
                 intrusionLevel[Intrude.RANGE] = TaRaIntrusion.TA;
             } else if (horizontalDistance < 6) {
                 intrusionLevel[Intrude.RANGE] = TaRaIntrusion.PROXIMITY;
             }
 
             // Perform altitude test
-            if (traffic.vTau < ((Math.abs(this.verticalSpeed) <= 600) ? TCAS.TVTHR[this.sensitivity] : TCAS.TAU[this.sensitivity][TaRaIndex.RA])
-            || Math.abs(traffic.relativeAlt) < TCAS.ZTHR[this.sensitivity][TaRaIndex.RA]) {
+            if (traffic.vTau < ((Math.abs(this.verticalSpeed) <= 600) ? TCAS.TVTHR[this.sensitivity.getVar()] : TCAS.TAU[this.sensitivity.getVar()][TaRaIndex.RA])
+            || Math.abs(traffic.relativeAlt) < TCAS.ZTHR[this.sensitivity.getVar()][TaRaIndex.RA]) {
                 intrusionLevel[Intrude.ALT] = TaRaIntrusion.RA;
-            } else if (traffic.vTau < TCAS.TAU[this.sensitivity][TaRaIndex.TA] || Math.abs(traffic.relativeAlt) < TCAS.ZTHR[this.sensitivity][TaRaIndex.TA]) {
+            } else if (traffic.vTau < TCAS.TAU[this.sensitivity.getVar()][TaRaIndex.TA] || Math.abs(traffic.relativeAlt) < TCAS.ZTHR[this.sensitivity.getVar()][TaRaIndex.TA]) {
                 intrusionLevel[Intrude.ALT] = TaRaIntrusion.TA;
             } else if (Math.abs(traffic.relativeAlt) < 1200) {
                 intrusionLevel[Intrude.ALT] = TaRaIntrusion.PROXIMITY;
@@ -473,10 +507,10 @@ export class TcasComputer implements TcasComponent {
             } else if (this.activeRa.info !== null
                     && traffic.intrusionLevel === TaRaIntrusion.RA
                     && desiredIntrusionLevel < TaRaIntrusion.RA
-                    && (traffic.taTau < TCAS.TAU[this.sensitivity][TaRaIndex.TA] * TCAS.VOL_BOOST
-                        || traffic.slantDistance < TCAS.DMOD[this.sensitivity][TaRaIndex.TA] * TCAS.VOL_BOOST)
-                    && (traffic.vTau < TCAS.TAU[this.sensitivity][TaRaIndex.TA] * TCAS.VOL_BOOST
-                        || Math.abs(traffic.relativeAlt) < TCAS.ZTHR[this.sensitivity][TaRaIndex.TA] * TCAS.VOL_BOOST)
+                    && (traffic.taTau < TCAS.TAU[this.sensitivity.getVar()][TaRaIndex.TA] * TCAS.VOL_BOOST
+                        || traffic.slantDistance < TCAS.DMOD[this.sensitivity.getVar()][TaRaIndex.TA] * TCAS.VOL_BOOST)
+                    && (traffic.vTau < TCAS.TAU[this.sensitivity.getVar()][TaRaIndex.TA] * TCAS.VOL_BOOST
+                        || Math.abs(traffic.relativeAlt) < TCAS.ZTHR[this.sensitivity.getVar()][TaRaIndex.TA] * TCAS.VOL_BOOST)
                     && traffic.closureRate >= TCAS.CLOSURE_RATE_THRESH) {
                 traffic.intrusionLevel = TaRaIntrusion.RA;
             } else if (!this.isSlewActive) {
@@ -576,7 +610,7 @@ export class TcasComputer implements TcasComponent {
         this._newRa.secondsSinceStart = 0;
         this._newRa.hasBeenAnnounced = false;
         const previousRa = this.activeRa;
-        const ALIM = TCAS.ALIM[this.sensitivity];
+        const ALIM = TCAS.ALIM[this.sensitivity.getVar()];
 
         if (this.raTraffic.length === 0) {
             return;
@@ -727,7 +761,7 @@ export class TcasComputer implements TcasComponent {
                     alreadyAchievedALIM = false;
                 }
                 */
-                if (Math.abs(this.pressureAlt - traffic.alt) < TCAS.ZTHR[this.sensitivity][TaRaIndex.TA]) {
+                if (Math.abs(this.pressureAlt - traffic.alt) < TCAS.ZTHR[this.sensitivity.getVar()][TaRaIndex.TA]) {
                     alreadyAchievedTaZTHR = false;
                 }
                 if (traffic.raTau < minTimeToCPA) {
@@ -944,13 +978,13 @@ export class TcasComputer implements TcasComponent {
                     console.log(` alt | ${traffic.alt}`);
                     console.log(` rAlt | ${traffic.relativeAlt}`);
                     console.log(` sDist | ${traffic.slantDistance}`);
-                    console.log(` bearing | ${Avionics.Utils.computeGreatCircleHeading(this._pposLatLong, { lat: traffic.lat, long: traffic.lon })}`);
-                    console.log(` hDist | ${Avionics.Utils.computeGreatCircleDistance(this._pposLatLong, { lat: traffic.lat, long: traffic.lon })}`);
+                    console.log(` bearing | ${MathUtils.computeGreatCircleHeading(this.ppos.lat, this.ppos.long, traffic.lat, traffic.lon)}`);
+                    console.log(` hDist | ${MathUtils.computeGreatCircleDistance(this.ppos.lat, this.ppos.long, traffic.lat, traffic.lon)}`);
                     console.log(` closureRate | ${traffic.closureRate}`);
                     console.log(` closureAccel | ${traffic.closureAccel}`);
-                    console.log(` RA TAU | ${traffic.raTau} <<< : ${TCAS.TAU[this.sensitivity][TaRaIndex.RA]}`);
-                    console.log(` V TAU | ${traffic.vTau} <<< : ${TCAS.TAU[this.sensitivity][TaRaIndex.TA]}`);
-                    console.log(` TA TAU | ${traffic.taTau} <<< : ${TCAS.TAU[this.sensitivity][TaRaIndex.RA]}`);
+                    console.log(` RA TAU | ${traffic.raTau} <<< : ${TCAS.TAU[this.sensitivity.getVar()][TaRaIndex.RA]}`);
+                    console.log(` V TAU | ${traffic.vTau} <<< : ${TCAS.TAU[this.sensitivity.getVar()][TaRaIndex.TA]}`);
+                    console.log(` TA TAU | ${traffic.taTau} <<< : ${TCAS.TAU[this.sensitivity.getVar()][TaRaIndex.RA]}`);
                     console.log(' ================================ ');
                 });
                 console.log('TCAS: RA GENERATED: ', this.activeRa.info.callout);
@@ -982,8 +1016,16 @@ export class TcasComputer implements TcasComponent {
             .sort((a, b) => b.intrusionLevel - a.intrusionLevel || a.raTau - b.raTau || a.taTau - b.taTau || a.slantDistance - b.slantDistance);
             // Limit number of contacts displayed to 8
         sentAirTraffic.forEach((traffic: TcasTraffic, index) => {
-            if (index >= TCAS.DISPLAY_MAX) return;
-            this.sendAirTraffic.push(new NDTcasTraffic(traffic));
+            if (this.debug) {
+                const debugTraffic = new NDTcasDebugTraffic(traffic);
+                debugTraffic.hidden = index >= TCAS.DISPLAY_MAX;
+                this.sendAirTraffic.push(debugTraffic);
+            } else {
+                if (index >= TCAS.DISPLAY_MAX) {
+                    return;
+                }
+                this.sendAirTraffic.push(new NDTcasTraffic(traffic));
+            }
         });
         this.raTraffic.forEach((tf) => {
             const traffic: TcasTraffic | undefined = sentAirTraffic.find((p) => p && p.ID === tf.ID);

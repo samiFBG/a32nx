@@ -1,7 +1,7 @@
 export class MathUtils {
     static DEEGREES_TO_RADIANS = Math.PI / 180;
 
-    static Rad2Deg = 180 / Math.PI;
+    static RADIANS_TO_DEGREES = 180 / Math.PI;
 
     private static optiPow10 = [];
 
@@ -104,30 +104,92 @@ export class MathUtils {
     }
 
     /**
-     * Gets the distance between 2 points, given in lat/lon/alt above sea level
-     * @param pos1 {number[]} Position 1 [lat, lon, alt(feet)]
-     * @param pos2 {number[]} Position 2 [lat, lon, alt(feet)]
+     * Gets the horizontal distance between 2 points, given in lat/lon
+     * @param pos0Lat {number} Position 0 lat
+     * @param pos0Lon {number} Position 0 lon
+     * @param pos1Lat {number} Position 1 lat
+     * @param pos1Lon {number} Position 1 lon
      * @return {number} distance in nautical miles
      */
-    public static computeDistance3D(pos1, pos2) {
+    public static computeGreatCircleDistance(pos0Lat: number, pos0Lon: number, pos1Lat: number, pos1Lon: number): number {
+        const lat0 = pos0Lat * MathUtils.DEEGREES_TO_RADIANS;
+        const lon0 = pos0Lon * MathUtils.DEEGREES_TO_RADIANS;
+        const lat1 = pos1Lat * MathUtils.DEEGREES_TO_RADIANS;
+        const lon1 = pos1Lon * MathUtils.DEEGREES_TO_RADIANS;
+        const dlon = lon1 - lon0;
+        const cosLat0 = Math.cos(lat0);
+        const cosLat1 = Math.cos(lat1);
+        const a1 = Math.sin((lat1 - lat0) / 2);
+        const a2 = Math.sin(dlon / 2);
+        return Math.asin(Math.sqrt(a1 * a1 + cosLat0 * cosLat1 * a2 * a2)) * 6880.126;
+    }
+
+    /**
+     * Gets the heading between 2 points, given in lat/lon
+     * @param pos0Lat {number} Position 0 lat
+     * @param pos0Lon {number} Position 0 lon
+     * @param pos1Lat {number} Position 1 lat
+     * @param pos1Lon {number} Position 1 lon
+     * @return {number} distance in nautical miles
+     */
+    static computeGreatCircleHeading(pos0Lat: number, pos0Lon: number, pos1Lat: number, pos1Lon: number): number {
+        const lat0 = pos0Lat * MathUtils.DEEGREES_TO_RADIANS;
+        const lon0 = pos0Lon * MathUtils.DEEGREES_TO_RADIANS;
+        const lat1 = pos1Lat * MathUtils.DEEGREES_TO_RADIANS;
+        const lon1 = pos1Lon * MathUtils.DEEGREES_TO_RADIANS;
+        const dlon = lon1 - lon0;
+        const cosLat1 = Math.cos(lat1);
+        let x = Math.sin(lat1 - lat0);
+        const sinLon2 = Math.sin(dlon / 2.0);
+        x += sinLon2 * sinLon2 * 2.0 * Math.sin(lat0) * cosLat1;
+        let heading = Math.atan2(cosLat1 * Math.sin(dlon), x);
+        if (heading < 0) {
+            heading += 2 * Math.PI;
+        }
+        return heading * MathUtils.RADIANS_TO_DEGREES;
+    }
+
+    /**
+     * Gets the distance between 2 points, given in lat/lon/alt above sea level
+     * @param pos0Lat {number} Position 0 lat
+     * @param pos0Lon {number} Position 0 lon
+     * @param pos0alt {number} Position 0 alt (feet)
+     * @param pos1Lat {number} Position 1 lat
+     * @param pos1Lon {number} Position 1 lon
+     * @param pos1alt {number} Position 1 alt (feet)
+     * @return {number} distance in nautical miles
+     */
+    public static computeDistance3D(pos0Lat: number, pos0Lon: number, pos0alt: number, pos1Lat: number, pos1Lon: number, pos1alt: number): number {
         const earthRadius = 3440.065; // earth radius in nautcal miles
         const deg2rad = Math.PI / 180;
 
-        const radius1 = pos1[2] / 6076 + earthRadius;
-        const radius2 = pos2[2] / 6076 + earthRadius;
+        const radius1 = pos0alt / 6076 + earthRadius;
+        const radius2 = pos1alt / 6076 + earthRadius;
 
-        const x1 = radius1 * Math.sin(deg2rad * (pos1[0] + 90)) * Math.cos(deg2rad * (pos1[1] + 180));
-        const y1 = radius1 * Math.sin(deg2rad * (pos1[0] + 90)) * Math.sin(deg2rad * (pos1[1] + 180));
-        const z1 = radius1 * Math.cos(deg2rad * (pos1[0] + 90));
+        const x1 = radius1 * Math.sin(deg2rad * (pos0Lat + 90)) * Math.cos(deg2rad * (pos0Lon + 180));
+        const y1 = radius1 * Math.sin(deg2rad * (pos0Lat + 90)) * Math.sin(deg2rad * (pos0Lon + 180));
+        const z1 = radius1 * Math.cos(deg2rad * (pos0Lat + 90));
 
-        const x2 = radius2 * Math.sin(deg2rad * (pos2[0] + 90)) * Math.cos(deg2rad * (pos2[1] + 180));
-        const y2 = radius2 * Math.sin(deg2rad * (pos2[0] + 90)) * Math.sin(deg2rad * (pos2[1] + 180));
-        const z2 = radius2 * Math.cos(deg2rad * (pos2[0] + 90));
+        const x2 = radius2 * Math.sin(deg2rad * (pos1Lat + 90)) * Math.cos(deg2rad * (pos1Lon + 180));
+        const y2 = radius2 * Math.sin(deg2rad * (pos1Lat + 90)) * Math.sin(deg2rad * (pos1Lon + 180));
+        const z2 = radius2 * Math.cos(deg2rad * (pos1Lat + 90));
 
         return Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2 + (z1 - z2) ** 2);
     }
 
-    public static isInEllipse(xPos: number, yPos: number, xLimPos: number, yLimPos: number, xLimNeg: number = xLimPos, yLimNeg: number = yLimPos): boolean {
+    /**
+     * Check if point is inside a given ellipse
+     *
+     * @param {number} xPos x value of point
+     * @param {number} yPos y value of point
+     * @param {number} xLimPos +ve xLimit of ellipse
+     * @param {number} xLimNeg -ve xLimit of ellipse
+     * @param {number} yLimPos +ve yLimit of ellipse
+     * @param {number} yLimNeg -ve yLimit of ellipse
+     * @return {boolean} Whether the point is in the ellipse
+     *
+     */
+    public static pointInEllipse(xPos: number, yPos: number, xLimPos: number, yLimPos: number, xLimNeg: number = xLimPos, yLimNeg: number = yLimPos): boolean {
         return (xPos ** 2 / ((xPos >= 0) ? xLimPos : xLimNeg) ** 2 + yPos ** 2 / ((yPos >= 0) ? yLimPos : yLimNeg) ** 2) <= 1;
     }
 
@@ -136,18 +198,19 @@ export class MathUtils {
      * This runs in O(n) where n is the number of edges of the polygon.
      *
      * @param {Array} polygon an array representation of the polygon where polygon[i][0] is the x Value of the i-th point and polygon[i][1] is the y Value.
-     * @param {Array} point   an array representation of the point where point[0] is its x Value and point[1] is its y Value
-     * @return {boolean} whether the point is in the polygon (not on the edge, just turn < into <= and > into >= for that)
+     * @param {number} xPos  x value of point
+     * @param {number} yPos y value of point
+     * @return {boolean} Whether the point is in the polygon (not on the edge, just turn < into <= and > into >= for that)
      */
-    public static pointInPolygon(x: number, y: number, polygon: [number, number][]): boolean {
+    public static pointInPolygon(xPos: number, yPos: number, polygon: [number, number][]): boolean {
         // A point is in a polygon if a line from the point to infinity crosses the polygon an odd number of times
         let odd = false;
         // For each edge (In this case for each point of the polygon and the previous one)
         for (let i = 0, j = polygon.length - 1; i < polygon.length; i++) {
             // If a line from the point into infinity crosses this edge
-            if (((polygon[i][1] > y) !== (polygon[j][1] > y)) // One point needs to be above, one below our y coordinate
+            if (((polygon[i][1] > yPos) !== (polygon[j][1] > yPos)) // One point needs to be above, one below our y coordinate
                 // ...and the edge doesn't cross our Y corrdinate before our x coordinate (but between our x coordinate and infinity)
-                && (x < ((polygon[j][0] - polygon[i][0]) * (y - polygon[i][1]) / (polygon[j][1] - polygon[i][1]) + polygon[i][0]))) {
+                && (xPos < ((polygon[j][0] - polygon[i][0]) * (yPos - polygon[i][1]) / (polygon[j][1] - polygon[i][1]) + polygon[i][0]))) {
                 // Invert odd
                 odd = !odd;
             }
@@ -157,9 +220,22 @@ export class MathUtils {
         return odd;
     }
 
-    // Line intercept math by Paul Bourke http://paulbourke.net/geometry/pointlineplane/
-    // Determine the intersection point of two line segments
-    // Return FALSE if the lines don't intersect
+    /**
+     * Line intercept math by Paul Bourke http://paulbourke.net/geometry/pointlineplane/
+     * Determine the intersection point of two line segments
+     * Return null if the lines don't intersect
+     *
+     * @param {number} x1 line0 x origin
+     * @param {number} y1 line0 y origin
+     * @param {number} x2 line0 x end
+     * @param {number} y2 line0 y end
+     * @param {number} x3 line1 x origin
+     * @param {number} y3 line1 y origin
+     * @param {number} x4 line1 x end
+     * @param {number} y4 line1 y end
+     *
+     * @return {[number, number] | null} [x,y] of intercept, null if no intercept.
+     */
     public static intersect(x1: number, y1: number, x2: number, y2: number, x3: number, y3: number, x4: number, y4: number): [number, number] | null {
         // Check if none of the lines are of length 0
         if ((x1 === x2 && y1 === y2) || (x3 === x4 && y3 === y4)) {
