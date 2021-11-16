@@ -926,6 +926,8 @@ export class TcasComputer implements TcasComponent {
             this.activeRa.hasBeenAnnounced = this._newRa.hasBeenAnnounced;
             this.activeRa.secondsSinceStart += _deltaTime / 1000;
             if (!this.activeRa.hasBeenAnnounced) {
+                console.log('RA Intruders: ');
+                console.log(this.raTraffic);
                 console.log('TCAS: RA GENERATED: ', this.activeRa.info.callout);
 
                 if (this.activeRa.info.callout.repeat) {
