@@ -70,6 +70,9 @@
 1. [AP] Added support for events AP_MACH_INC/DEC and AP_ALT_INC/DEC - @aguther (Andreas Guther)
 1. [SOUND] Added ALT increment selector and fixed ISIS sounds - @ImenesFBW (Imenes)
 1. [AP] Added support for other default events to basically push/pull all FCU buttons - @aguther (Andreas Guther)
+1. [TCAS] Implemented traffic advisories, resolution advisories, and collision avoidance logic - @wpine215 (Iceman) @2hwk (2Cas#1022)
+1. [PFD] Implemented TCAS guidance on vertical speed tape - @wpine215 (Iceman)
+1. [SOUNDS] Connected TCAS TA/RA logic to TCAS Wwise events - @wpine215 (Iceman)  @2hwk (2Cas#1022)
 
 ## 0.7.0
 
