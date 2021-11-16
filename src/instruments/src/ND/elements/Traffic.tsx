@@ -1,17 +1,16 @@
 /* eslint-disable camelcase */
 import { useSimVar } from '@instruments/common/simVars';
-import React, { useEffect, FC, useState, useReducer, memo } from 'react';
+import React, { FC, useState, useReducer, memo } from 'react';
 import { Layer } from '@instruments/common/utils';
 import { TCAS_CONST as TCAS, TaRaIntrusion, TaRaIndex } from '@tcas/lib/TcasConstants';
 import { Coordinates } from '@fmgc/flightplanning/data/geo';
 import { MathUtils } from '@shared/MathUtils';
-import { EfisSide, Mode, NdTraffic } from '@shared/NavigationDisplay';
+import { Mode, NdTraffic } from '@shared/NavigationDisplay';
 import { usePersistentProperty } from '@instruments/common/persistence';
 import { MapParameters } from '../utils/MapParameters';
+import { useCoherentEvent } from '@instruments/common/hooks';
 
 export type TcasProps = {
-    side: EfisSide,
-    airTraffic: NdTraffic[],
     mapParams: MapParameters,
     mode: Mode.ARC | Mode.ROSE_NAV | Mode.ROSE_ILS | Mode.ROSE_VOR,
 }
@@ -30,17 +29,15 @@ function reducer(state, action) {
     }
 }
 
-export const Traffic: FC<TcasProps> = ({ side, airTraffic,  mapParams, mode }) => {
+export const Traffic: FC<TcasProps> = ({ mapParams, mode }) => {
     const [displayTraffic, displayTrafficDispatch] = useReducer(reducer, []);
-    const [offScreenL, setOffScreenL] = useSimVar(`L:A32NX_TCAS_${side}_OFF_SCREEN_L`, 'number', 200);
-    const [offScreenR, setOffScreenR] = useSimVar(`L:A32NX_TCAS_${side}_OFF_SCREEN_R`, 'number', 200);
     const [latLong] = useState<Coordinates>({ lat: NaN, long: NaN });
     const [debug] = usePersistentProperty('TCAS_DEBUG', '0');
     const [sensitivity] = useSimVar('L:A32NX_TCAS_SENSITIVITY', 'number', 200);
     const [tcasMask] = useState<[number, number][]>(mode === Mode.ARC ? [
         // ARC
-        [-384, -310], [-384, 0], [-264, 0], [-210, 59], [-210, 65],
-        [210, 65], [210, 0], [267, -61], [384, -61],
+        [-384, -310], [-384, 0], [-264, 0], [-210, 59], [-210, 143],
+        [210, 143], [210, 0], [267, -61], [384, -61],
         [384, -310], [340, -355], [300, -390], [240, -431.5],
         [180, -460], [100, -482], [0, -492], [-100, -482],
         [-180, -460], [-240, -431.5], [-300, -390], [-340, -355],
@@ -55,10 +52,8 @@ export const Traffic: FC<TcasProps> = ({ side, airTraffic,  mapParams, mode }) =
     const x: number = 361.5;
     const y: number = (mode === Mode.ARC) ? 606.5 : 368;
 
-    useEffect(() => {
+    useCoherentEvent('A32NX_TCAS_TRAFFIC', (airTraffic: NdTraffic[]) => {
         displayTraffic.forEach((traffic: NdTraffic) => traffic.alive = false);
-        let leftOff: string | null = null;
-        let rightOff: string | null = null;
         airTraffic && airTraffic.forEach((tf: NdTraffic) => {
             latLong.lat = tf.lat;
             latLong.long = tf.lon;
@@ -66,21 +61,8 @@ export const Traffic: FC<TcasProps> = ({ side, airTraffic,  mapParams, mode }) =
 
             // TODO FIXME: Full time option installed: For all ranges except in ZOOM ranges, NDRange > 9NM
             if (!MathUtils.pointInPolygon(x, y, tcasMask)) {
-                if (mode === Mode.ARC) {
-                    const intercept = !!MathUtils.intersect(x, y, 0, 0, -210, 65, 210, 65);
-                    if (intercept) {
-                        if (tf.intrusionLevel > 1 && !rightOff) {
-                            if (leftOff === null) {
-                                leftOff = tf.ID;
-                                setOffScreenL(parseInt(tf.ID));
-                            }
-                            else if (leftOff && tf.ID !== leftOff) {
-                                rightOff = tf.ID;
-                                setOffScreenR(parseInt(tf.ID));
-                            }
-                        }
-                        return;
-                    }
+                if (tf.intrusionLevel < TaRaIntrusion.TA) {
+                    return;
                 }
                 const ret: [number, number] | null = MathUtils.intersectWithPolygon(x, y, 0, 0, tcasMask);
                 if (ret) [x, y] = ret;
@@ -114,24 +96,13 @@ export const Traffic: FC<TcasProps> = ({ side, airTraffic,  mapParams, mode }) =
                 displayTraffic.push(tf);
             }
         });
-        if (!leftOff) {
-            setOffScreenL(-1);
-            setOffScreenR(-1);
-        } else if (!rightOff) {
-            setOffScreenR(-1);
-        }
         displayTraffic.forEach((traffic: NdTraffic, index: number) => {
             if (!traffic.alive) {
                 displayTrafficDispatch({ type: 'remove', index});
             }
         });
 
-    }, [airTraffic]);
-
-    useEffect(()=> {
-        setOffScreenL(-1);
-        setOffScreenR(-1);
-    }, []);
+    });
 
     if (debug !== '0') {
         const dmodRa: number = mapParams.nmToPx * (TCAS.DMOD[sensitivity || 1][TaRaIndex.RA]);
