@@ -49,13 +49,22 @@ class A32NX_SoundManager {
         }
     }
 
-    tryPlaySound(sound) {
+    tryPlaySound(sound, retry = false, repeatOnce = false) {
         if (this.playingSound === null) {
             this.playingSound = sound;
             this.playingSoundRemaining = sound.length;
 
             Coherent.call("PLAY_INSTRUMENT_SOUND", sound.name).catch(console.error);
+            if (repeatOnce) {
+                this.soundQueue.push(sound);
+            }
             return true;
+        } else if (retry) {
+            this.soundQueue.push(sound);
+            if (repeatOnce) {
+                this.soundQueue.push(sound);
+            }
+            return false;
         }
         return false;
     }
