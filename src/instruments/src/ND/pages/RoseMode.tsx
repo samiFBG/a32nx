@@ -13,6 +13,7 @@ import { RadioNeedle } from '../elements/RadioNeedles';
 import { ApproachMessage } from '../elements/ApproachMessage';
 import { CrossTrack } from '../elements/CrossTrack';
 import { TrackLine } from '../elements/TrackLine';
+import { TcasInfo } from '../elements/TcasInfo';
 
 export interface RoseModeProps {
     symbols: NdSymbol[],
@@ -110,6 +111,7 @@ export const RoseMode: FC<RoseModeProps> = ({ symbols, adirsAlign, rangeSetting,
                             )}
                         </g>
                     )}
+                    <TcasInfo mapParams={mapParams} />
                     <RadioNeedle index={1} side={side} displayMode={mode} centreHeight={384} />
                     <RadioNeedle index={2} side={side} displayMode={mode} centreHeight={384} />
                 </g>
@@ -142,6 +144,7 @@ export const RoseMode: FC<RoseModeProps> = ({ symbols, adirsAlign, rangeSetting,
 };
 
 interface OverlayProps {
+    adirsAlign: boolean,
     heading: number,
     rangeSetting: number,
     tcasMode: number,
