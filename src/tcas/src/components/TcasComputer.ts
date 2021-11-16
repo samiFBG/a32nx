@@ -424,8 +424,7 @@ export class TcasComputer implements TcasComponent {
             // this also leads to problems above 1750 ft (the threshold for ground detection), since the aircraft on ground are then shown again.
             // Currently just hide all above currently ground alt (of ppos) + 380, not ideal but works better than other solutions.
             const groundAlt = this.pressureAlt - this.radioAlt; // altitude of the terrain
-            // const onGround = !!((this.pressureAlt < 1750 && traffic.alt < groundAlt + 380));
-            const onGround = !!(traffic.alt < groundAlt + 500); // Need to increase vs true-to-life logic due to badly reported altitude by MSFS live traffic
+            const onGround = !!((this.pressureAlt < 1750 && traffic.alt < groundAlt + 380));
             traffic.onGround = onGround;
             let isDisplayed = false;
             if (!onGround) {
@@ -987,6 +986,7 @@ export class TcasComputer implements TcasComponent {
                     console.log(` TA TAU | ${traffic.taTau} <<< : ${TCAS.TAU[this.sensitivity.getVar()][TaRaIndex.RA]}`);
                     console.log(' ================================ ');
                 });
+                debugger;
                 console.log('TCAS: RA GENERATED: ', this.activeRa.info.callout);
 
                 if (this.activeRa.info.callout.repeat) {

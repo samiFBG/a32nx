@@ -62,8 +62,6 @@ export const Traffic: FC<TcasProps> = ({ mode, mapParams }) => {
     ];
     const x: number = 361.5;
     const y: number = (mode === Mode.ARC) ? 606.5 : 368;
-    const dmodRa: number = mapParams.nmToPx * TCAS.DMOD[sensitivity][TaRaIndex.RA];
-    const dmodTa: number = mapParams.nmToPx * TCAS.DMOD[sensitivity][TaRaIndex.TA];
 
     useCoherentEvent('A32NX_TCAS_TRAFFIC', (aT: NDTraffic[]) => {
         airTraffic.forEach((traffic) => traffic.alive = false);
@@ -115,30 +113,28 @@ export const Traffic: FC<TcasProps> = ({ mode, mapParams }) => {
     }, [tcasMode]);
 
     if (debug !== '0') {
+        const dmodRa: number = mapParams.nmToPx * (TCAS.DMOD[sensitivity || 1][TaRaIndex.RA]);
+        const dmodTa: number = mapParams.nmToPx * (TCAS.DMOD[sensitivity || 1][TaRaIndex.TA]);
         return (
             <Layer x={x} y={y}>
-                <path
-                    d={`
-                    M 22.5, 16
-                    m -${dmodTa}, 0
-                    a ${dmodTa},${dmodTa} 0 1,0 ${dmodTa * 2},0
-                    a ${dmodTa},${dmodTa} 0 1,0 -${dmodTa * 2},0
-                    `}
-                    strokeWidth={2}
-                    className="Amber"
-                    strokeDasharray="5 2.5"
-                />
-                <path
-                    d={`
-                    M 22.5, 16
-                    m -${dmodRa}, 0
-                    a ${dmodRa},${dmodRa} 0 1,0 ${dmodRa * 2},0
-                    a ${dmodRa},${dmodRa} 0 1,0 -${dmodRa * 2},0
-                    `}
-                    strokeWidth={2}
-                    className="Red"
-                    strokeDasharray="6 3"
-                />
+                {dmodTa >= 0
+                && (
+                    <path
+                        d={`M 22.5, 16 m -${dmodTa}, 0 a ${dmodTa},${dmodTa} 0 1,0 ${dmodTa * 2},0 a ${dmodTa},${dmodTa} 0 1,0 -${dmodTa * 2},0`}
+                        strokeWidth={2}
+                        className="Amber"
+                        strokeDasharray="5 2.5"
+                    />
+                )}
+                {dmodRa >= 0
+                && (
+                    <path
+                        d={`M 22.5, 16 m -${dmodRa}, 0 a ${dmodRa},${dmodRa} 0 1,0 ${dmodRa * 2},0 a ${dmodRa},${dmodRa} 0 1,0 -${dmodRa * 2},0`}
+                        strokeWidth={2}
+                        className="Red"
+                        strokeDasharray="6 3"
+                    />
+                )}
                 <text x={290} y={-200} fill="#ffffff" fontSize="12px" height={1.25} strokeWidth={0.3} textAnchor="middle" xmlSpace="preserve">
                     <tspan fill="#ffffff">
                         {`Sensitivity: ${sensitivity}`}
@@ -147,38 +143,38 @@ export const Traffic: FC<TcasProps> = ({ mode, mapParams }) => {
                         {'DMOD: '}
                     </tspan>
                     <tspan fill="#e38c56">
-                        {TCAS.DMOD[sensitivity][TaRaIndex.TA]}
+                        {dmodTa}
                     </tspan>
                     <tspan fill="#ffffff">
                         {' | '}
                     </tspan>
                     <tspan fill="#ff0000">
-                        {TCAS.DMOD[sensitivity][TaRaIndex.RA]}
+                        {dmodRa}
                     </tspan>
                     <tspan x={290} dy={15} fill="#ffffff">
                         {'TAU THR: '}
                     </tspan>
                     <tspan fill="#e38c56">
-                        {TCAS.TAU[sensitivity][TaRaIndex.TA]}
+                        {TCAS.TAU[sensitivity || 1][TaRaIndex.TA]}
                     </tspan>
                     <tspan fill="#ffffff">
                         {' | '}
                     </tspan>
                     <tspan fill="#ff0000">
-                        {TCAS.TAU[sensitivity][TaRaIndex.RA]}
+                        {TCAS.TAU[sensitivity || 1][TaRaIndex.RA]}
                     </tspan>
 
                     <tspan x={290} dy={15} fill="#ffffff">
                         {'Z THR: '}
                     </tspan>
                     <tspan fill="#e38c56">
-                        {TCAS.ZTHR[sensitivity][TaRaIndex.TA]}
+                        {TCAS.ZTHR[sensitivity || 1][TaRaIndex.TA]}
                     </tspan>
                     <tspan fill="#ffffff">
                         {' | '}
                     </tspan>
                     <tspan fill="#ff0000">
-                        {TCAS.ZTHR[sensitivity][TaRaIndex.RA]}
+                        {TCAS.ZTHR[sensitivity || 1][TaRaIndex.RA]}
                     </tspan>
 
                     <tspan x={290} dy={15} fill="#ffffff">
