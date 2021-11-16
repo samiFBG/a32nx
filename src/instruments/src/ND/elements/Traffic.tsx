@@ -108,10 +108,6 @@ export const Traffic: FC<TcasProps> = ({ mode, mapParams }) => {
         setAirTraffic(airTraffic.filter((tf) => tf.alive));
     });
 
-    useEffect(() => {
-        setAirTraffic([]);
-    }, [tcasMode]);
-
     if (debug !== '0') {
         const dmodRa: number = mapParams.nmToPx * (TCAS.DMOD[sensitivity || 1][TaRaIndex.RA]);
         const dmodTa: number = mapParams.nmToPx * (TCAS.DMOD[sensitivity || 1][TaRaIndex.TA]);

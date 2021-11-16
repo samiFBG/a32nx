@@ -462,7 +462,7 @@ export class TcasComputer implements TcasComponent {
             }
             traffic.isDisplayed = isDisplayed;
 
-            const intrusionLevel: TaRaIntrusion[] = [0, 0];
+            const intrusionLevel: TaRaIntrusion[] = [0, 0, 0];
 
             // Perform range test
             if (traffic.raTau < TCAS.TAU[this.sensitivity.getVar()][TaRaIndex.RA]
@@ -485,6 +485,16 @@ export class TcasComputer implements TcasComponent {
                 intrusionLevel[Intrude.ALT] = TaRaIntrusion.PROXIMITY;
             }
 
+            // Perform acceleration test
+            // TODO FIXME: Proper HMD based true-to-life filtering
+            if (Math.abs(traffic.closureAccel) <= TCAS.ACCEL[this.sensitivity.getVar()][TaRaIndex.RA]) {
+                intrusionLevel[Intrude.SPEED] = TaRaIntrusion.RA;
+            } else if (Math.abs(traffic.closureAccel) <= TCAS.ACCEL[this.sensitivity.getVar()][TaRaIndex.TA]) {
+                intrusionLevel[Intrude.SPEED] = TaRaIntrusion.TA;
+            } else {
+                intrusionLevel[Intrude.SPEED] = TaRaIntrusion.PROXIMITY;
+            }
+
             const desiredIntrusionLevel: TaRaIntrusion = Math.min(...intrusionLevel);
             if (traffic.intrusionLevel === TaRaIntrusion.TA
                     && desiredIntrusionLevel < TaRaIntrusion.TA
@@ -492,6 +502,7 @@ export class TcasComputer implements TcasComponent {
                 traffic.taExpiring = false;
                 traffic.secondsSinceLastTa = 0;
                 traffic.intrusionLevel = desiredIntrusionLevel;
+            // Don't allow TA to resolve if less than 4s
             } else if (traffic.intrusionLevel === TaRaIntrusion.TA
                     && desiredIntrusionLevel < TaRaIntrusion.TA
                     && traffic.secondsSinceLastTa < TCAS.TA_EXPIRATION_DELAY) {
@@ -986,7 +997,6 @@ export class TcasComputer implements TcasComponent {
                     console.log(` TA TAU | ${traffic.taTau} <<< : ${TCAS.TAU[this.sensitivity.getVar()][TaRaIndex.RA]}`);
                     console.log(' ================================ ');
                 });
-                debugger;
                 console.log('TCAS: RA GENERATED: ', this.activeRa.info.callout);
 
                 if (this.activeRa.info.callout.repeat) {
@@ -1048,6 +1058,10 @@ export class TcasComputer implements TcasComponent {
         this.updateInhibitions();
         this.updateStatus();
         if (this.tcasMode.getVar() === TcasMode.STBY) {
+            if (this.sendAirTraffic.length !== 0) {
+                this.sendAirTraffic.length = 0;
+                this.sendListener.triggerToAllSubscribers('A32NX_TCAS_TRAFFIC', this.sendAirTraffic);
+            }
             return;
         }
         this.updateSensitivity();

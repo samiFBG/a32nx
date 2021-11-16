@@ -25,7 +25,7 @@ export enum TcasMode { STBY = 0, TA = 1, TARA = 2 }
 export enum XpdrMode { STBY = 1, ON = 3, ALT = 4, }
 export enum TaRaIndex { TA = 0, RA = 1 }
 export enum TaRaIntrusion { TRAFFIC = 0, PROXIMITY = 1, TA = 2, RA = 3 }
-export enum Intrude { RANGE = 0, ALT = 1 }
+export enum Intrude { RANGE = 0, ALT = 1, SPEED = 2}
 export enum RaSense { UP = 0, DOWN = 1 }
 export enum RaType { CORRECT = 0, PREVENT = 1 }
 export enum Limits { MIN = 0, MAX = 1 }
@@ -182,6 +182,19 @@ const ALIM: SensitivityList = {
     6: 400,
     7: 600,
     8: 700,
+} as const;
+
+// Limit closure acceleration (workaround/unrealistic)
+// TODO FIXME: Replace with HMD accel filter?
+const ACCEL: SensitivityMatrix = {
+    1: [900, 900],
+    2: [1000, 1000],
+    3: [1100, 1200],
+    4: [1200, 1300],
+    5: [1300, 1400],
+    6: [2000, 2200],
+    7: [2100, 2300],
+    8: [2200, 2500],
 } as const;
 
 // many lengths are approximate until we can get them accuratly (when boris re-makes them and we have the sources)
@@ -660,6 +673,7 @@ export const TCAS_CONST: { [key: string] : any } = {
     ZTHR,
     TVTHR,
     ALIM,
+    ACCEL,
     SOUNDS,
     CALLOUTS,
     RA_VARIANTS,
