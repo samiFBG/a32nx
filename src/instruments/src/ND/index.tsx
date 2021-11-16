@@ -1,11 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useReducer, useRef, useState } from 'react';
 import { DisplayUnit } from '@instruments/common/displayUnit';
 import { FlightPlanProvider } from '@instruments/common/flightplan';
 import { useSimVar } from '@instruments/common/simVars';
 import { useArinc429Var } from '@instruments/common/arinc429';
 import { getSupplier } from '@instruments/common/utils';
 import { useCoherentEvent } from '@instruments/common/hooks';
-import { Mode, NdSymbol, rangeSettings } from '@shared/NavigationDisplay';
+import { Mode, NdSymbol, NdTraffic, rangeSettings } from '@shared/NavigationDisplay';
 import { render } from '../Common';
 import { ArcMode } from './pages/ArcMode';
 import { WindIndicator } from './elements/WindIndicator';
@@ -94,6 +94,12 @@ const NavigationDisplay: React.FC = () => {
         setSymbols(symbols);
     });
 
+    const [airTraffic, setAirTraffic] = useState<NdTraffic[]>([]);
+
+    useCoherentEvent('A32NX_TCAS_TRAFFIC', (aT: NdTraffic[]) => {
+        setAirTraffic(aT);
+    });
+
     return (
         <DisplayUnit
             electricitySimvar={displayIndex === 1 ? 'L:A32NX_ELEC_AC_ESS_BUS_IS_POWERED' : 'L:A32NX_ELEC_AC_2_BUS_IS_POWERED'}
@@ -117,6 +123,7 @@ const NavigationDisplay: React.FC = () => {
                     {modeIndex === Mode.ARC && (
                         <ArcMode
                             adirsAlign={adirsAlign}
+                            airTraffic={airTraffic}
                             rangeSetting={rangeSettings[rangeIndex]}
                             symbols={symbols}
                             side={side}
@@ -128,6 +135,7 @@ const NavigationDisplay: React.FC = () => {
                     && (
                         <RoseMode
                             adirsAlign={adirsAlign}
+                            airTraffic={airTraffic}
                             rangeSetting={rangeSettings[rangeIndex]}
                             symbols={symbols}
                             side={side}
@@ -146,7 +154,7 @@ const NavigationDisplay: React.FC = () => {
                             <RadioNavInfo index={2} side={side} />
                         </>
                     )}
-                    <TcasWxrMessages modeIndex={modeIndex} />
+                    <TcasWxrMessages modeIndex={modeIndex} side={side} airTraffic={airTraffic}/>
                     <FMMessages modeIndex={modeIndex} side={side} />
 
                 </svg>

@@ -1,53 +1,55 @@
 /* eslint-disable camelcase */
 import { useCoherentEvent } from '@instruments/common/hooks';
 import { useSimVar } from '@instruments/common/simVars';
-import React, { useEffect, FC, useState, memo } from 'react';
+import React, { useEffect, FC, useState, useReducer, memo } from 'react';
 import { Layer } from '@instruments/common/utils';
 import { TCAS_CONST as TCAS, TaRaIntrusion, TaRaIndex } from '@tcas/lib/TcasConstants';
 import { Coordinates } from '@fmgc/flightplanning/data/geo';
 import { MathUtils } from '@shared/MathUtils';
-import { Mode } from '@shared/NavigationDisplay';
+import { EfisSide, Mode, NdTraffic } from '@shared/NavigationDisplay';
 import { usePersistentProperty } from '@instruments/common/persistence';
 import { MapParameters } from '../utils/MapParameters';
+import { TcasWxrMessages } from './messages/TcasWxrMessages';
 
-interface NDTraffic {
-    alive?: boolean;
-    ID: string;
-    name: string;
-    lat: number;
-    lon: number;
-    alt: number;
+interface OffTraffic {
+    distance: number;
     relativeAlt: number;
     vertSpeed: number;
-    heading: number;
     intrusionLevel: number;
-    posX: number;
-    posY: number;
-    // debug
-    seen?: number;
-    hidden?: boolean;
-    raTau?: number;
-    taTau?: number;
-    vTau?: number;
-    closureRate?: number;
-    closureAccel?: number;
 }
 
 export type TcasProps = {
+    side: EfisSide,
+    airTraffic: NdTraffic[],
     mapParams: MapParameters,
     mode: Mode.ARC | Mode.ROSE_NAV | Mode.ROSE_ILS | Mode.ROSE_VOR,
 }
 
-export const Traffic: FC<TcasProps> = ({ mode, mapParams }) => {
-    const [airTraffic, setAirTraffic] = useState<NDTraffic[]>([]);
+function reducer(state, action) {
+    switch (action.type) {
+      case 'add':
+        return [...state, action.item];
+      case 'remove':
+        return [
+          ...state.slice(0, action.index),
+          ...state.slice(action.index + 1)
+        ];
+      default:
+        throw new Error();
+    }
+}
+
+export const Traffic: FC<TcasProps> = ({ side, airTraffic,  mapParams, mode }) => {
+    const [displayTraffic, displayTrafficDispatch] = useReducer(reducer, []);
+    const [offScreenL, setOffScreenL] = useSimVar(`L:A32NX_TCAS_${side}_OFF_SCREEN_L`, 'number', 200);
+    const [offScreenR, setOffScreenR] = useSimVar(`L:A32NX_TCAS_${side}_OFF_SCREEN_R`, 'number', 200);
     const [latLong] = useState<Coordinates>({ lat: NaN, long: NaN });
     const [debug] = usePersistentProperty('TCAS_DEBUG', '0');
     const [sensitivity] = useSimVar('L:A32NX_TCAS_SENSITIVITY', 'number', 200);
-
-    const mask: [number, number][] = (mode === Mode.ARC) ? [
+    const [tcasMask] = useState<[number, number][]>(mode === Mode.ARC ? [
         // ARC
-        [-384, -310], [-384, 0], [-264, 0], [-210, 59], [-210, 185],
-        [210, 185], [210, 0], [267, -61], [384, -61],
+        [-384, -310], [-384, 0], [-264, 0], [-210, 59], [-210, 65],
+        [210, 65], [210, 0], [267, -61], [384, -61],
         [384, -310], [340, -355], [300, -390], [240, -431.5],
         [180, -460], [100, -482], [0, -492], [-100, -482],
         [-180, -460], [-240, -431.5], [-300, -390], [-340, -355],
@@ -58,27 +60,44 @@ export const Traffic: FC<TcasProps> = ({ mode, mapParams }) => {
         [0, -250], [50, -244], [103, -227], [340, -227],
         [340, 180], [267, 180], [210, 241], [210, 383],
         [-210, 383], [-210, 300], [-264, 241], [-340, 241], [-340, -227],
-    ];
+    ])
     const x: number = 361.5;
     const y: number = (mode === Mode.ARC) ? 606.5 : 368;
 
-    useCoherentEvent('A32NX_TCAS_TRAFFIC', (aT: NDTraffic[]) => {
-        airTraffic.forEach((traffic) => traffic.alive = false);
-        aT.forEach((tf: NDTraffic) => {
+    useEffect(() => {
+        displayTraffic.forEach((traffic: NdTraffic) => traffic.alive = false);
+        let leftOff: string | null = null;
+        let rightOff: string | null = null;
+        airTraffic && airTraffic.forEach((tf: NdTraffic) => {
             latLong.lat = tf.lat;
             latLong.long = tf.lon;
             let [x, y] = mapParams.coordinatesToXYy(latLong);
 
             // TODO FIXME: Full time option installed: For all ranges except in ZOOM ranges, NDRange > 9NM
-            // TODO FIXME: Always show relative alt even in off-scale/half display
-            if (!MathUtils.pointInPolygon(x, y, mask)) {
-                const ret: [number, number] | null = MathUtils.intersectWithPolygon(x, y, 0, 0, mask);
+            if (!MathUtils.pointInPolygon(x, y, tcasMask)) {
+                if (mode === Mode.ARC) {
+                    const intercept = !!MathUtils.intersect(x, y, 0, 0, -210, 65, 210, 65);
+                    if (intercept) {
+                        if (tf.intrusionLevel > 1 && !rightOff) {
+                            if (leftOff === null) {
+                                leftOff = tf.ID;
+                                setOffScreenL(parseInt(tf.ID));
+                            }
+                            else if (leftOff && tf.ID !== leftOff) {
+                                rightOff = tf.ID;
+                                setOffScreenR(parseInt(tf.ID));
+                            }
+                        }
+                        return;
+                    }
+                }
+                const ret: [number, number] | null = MathUtils.intersectWithPolygon(x, y, 0, 0, tcasMask);
                 if (ret) [x, y] = ret;
             }
             tf.posX = x;
             tf.posY = y;
 
-            const traffic: NDTraffic | undefined = airTraffic.find((p) => p && p.ID === tf.ID);
+            const traffic: NdTraffic | undefined = displayTraffic.find((p) => p && p.ID === tf.ID);
             if (traffic) {
                 traffic.alive = true;
                 traffic.alt = tf.alt;
@@ -101,11 +120,27 @@ export const Traffic: FC<TcasProps> = ({ mode, mapParams }) => {
                 }
             } else {
                 tf.alive = true;
-                airTraffic.push(tf);
+                displayTraffic.push(tf);
             }
         });
-        setAirTraffic(airTraffic.filter((tf) => tf.alive));
-    });
+        if (!leftOff) {
+            setOffScreenL(-1);
+            setOffScreenR(-1);
+        } else if (!rightOff) {
+            setOffScreenR(-1);
+        }
+        displayTraffic.forEach((traffic: NdTraffic, index: number) => {
+            if (!traffic.alive) {
+                displayTrafficDispatch({ type: 'remove', index});
+            }
+        });
+
+    }, [airTraffic]);
+
+    useEffect(()=> {
+        setOffScreenL(-1);
+        setOffScreenR(-1);
+    }, []);
 
     if (debug !== '0') {
         const dmodRa: number = mapParams.nmToPx * (TCAS.DMOD[sensitivity || 1][TaRaIndex.RA]);
@@ -179,7 +214,7 @@ export const Traffic: FC<TcasProps> = ({ mode, mapParams }) => {
                         {TCAS.ALIM[sensitivity]}
                     </tspan>
                 </text>
-                {airTraffic.map((tf) => (
+                {displayTraffic.map((tf) => (
                     <TrafficIndicatorDebug
                         key={tf.ID}
                         x={tf.posX}
@@ -203,7 +238,7 @@ export const Traffic: FC<TcasProps> = ({ mode, mapParams }) => {
     }
     return (
         <Layer x={x} y={y}>
-            {airTraffic.map((tf) => (
+            {displayTraffic.map((tf) => (
                 <TrafficIndicator
                     key={tf.ID}
                     x={tf.posX}
@@ -214,6 +249,7 @@ export const Traffic: FC<TcasProps> = ({ mode, mapParams }) => {
                 />
             ))}
         </Layer>
+
     );
 };
 
@@ -239,7 +275,7 @@ const TrafficIndicator: FC<TrafficProp> = memo(({ x, y, relativeAlt, vertSpeed, 
     }
 
     // Place relative altitude above/below
-    const relAltY: number = (relativeAlt > 0) ? 3.708355 : 43.708355;
+    const relAltY: number = (relativeAlt > 0) ? 7 : 43.5;
 
     return (
         <>
@@ -249,21 +285,25 @@ const TrafficIndicator: FC<TrafficProp> = memo(({ x, y, relativeAlt, vertSpeed, 
                 {intrusionLevel === TaRaIntrusion.TA && <image x={0} y={0} width={45} height={32} xlinkHref="/Images/ND/TRAFFIC_TA.svg" />}
                 {intrusionLevel === TaRaIntrusion.RA && <image x={0} y={0} width={45} height={32} xlinkHref="/Images/ND/TRAFFIC_RA.svg" />}
                 <g>
-                    <text x={30} y={relAltY} fill={color} height={1.25} strokeWidth={0.3} textAnchor="end" xmlSpace="preserve">
-                        <tspan x={17.25} y={relAltY} fill={color} fontSize="20px" strokeWidth={0.3} textAnchor="middle">
+                    <text x={30} y={relAltY} fill={color} height={1.25} paintOrder="stroke" stroke="#040405" strokeWidth={1} textAnchor="end" xmlSpace="preserve">
+                        <tspan x={17.25} y={relAltY} fill={color} fontSize="20px" paintOrder="stroke" stroke="#040405" strokeWidth={1} textAnchor="middle">
                             {`${relativeAlt > 0 ? '+' : '-'}${Math.abs(relativeAlt) < 10 ? '0' : ''}${Math.abs(relativeAlt)}`}
                         </tspan>
                     </text>
                     {(vertSpeed <= -500) && (
                         <>
-                            <path fill="none" stroke={color} strokeWidth={2.75} d="M38.3,24V6.6" />
-                            <path fill={color} stroke="none" fillRule="evenodd" d="M34,18l3.8,9.6h1l3.8-9.6H34z" />
+                            <path className="shadow" fill="none" strokeWidth={3} d="M35,21V9.7" />
+                            <path className="shadow" stroke="none" fillRule="evenodd" d="M31.3,18.5l3.3,7.1h0.9l3.3-7.1H31.3z" />
+                            <path fill="none" stroke={color} strokeWidth={1.6} d="M35,21V9.7" />
+                            <path fill={color} stroke="none" fillRule="evenodd" d="M31.3,18.5l3.3,7.1h0.9l3.3-7.1H31.3z" />
                         </>
                     )}
                     {(vertSpeed >= 500) && (
                         <>
-                            <path fill="none" stroke={color} strokeWidth={2.75} d="M38.3,9.5v17.4" />
-                            <path fill={color} stroke="none" fillRule="evenodd" d="M42.6,15.5l-3.8-9.6h-1L34,15.5H42.6z" />
+                            <path className="shadow" fill="none" strokeWidth={3} d="M35,14.2v11.3" />
+                            <path className="shadow" stroke="none" fillRule="evenodd" d="M38.7,16.7l-3.3-7.1h-0.9l-3.3,7.1H38.7z" />
+                            <path fill="none" stroke={color} strokeWidth={1.6} d="M35,14.2v11.3" />
+                            <path fill={color} stroke="none" fillRule="evenodd" d="M38.7,16.7l-3.3-7.1h-0.9l-3.3,7.1H38.7z" />
                         </>
                     )}
                 </g>
@@ -302,7 +342,7 @@ const TrafficIndicatorDebug: FC<TrafficPropDebug> = memo(({ x, y, relativeAlt, v
     }
 
     // Place relative altitude above/below
-    const relAltY: number = (relativeAlt > 0) ? 3.708355 : 43.708355;
+    const relAltY: number = (relativeAlt > 0) ? 7 : 43.5;
     const debugY1: number = (relativeAlt > 0) ? 38 : -1;
     const debugY2: number = (relativeAlt > 0) ? 50 : -13;
 
@@ -331,14 +371,14 @@ const TrafficIndicatorDebug: FC<TrafficPropDebug> = memo(({ x, y, relativeAlt, v
                     </text>
                     {(vertSpeed <= -500) && (
                         <>
-                            <path opacity={hidden ? 0.125 : 1} fill="none" stroke={color} strokeWidth={2.75} d="M38.3,24V6.6" />
-                            <path opacity={hidden ? 0.125 : 1} fill={color} stroke="none" fillRule="evenodd" d="M34,18l3.8,9.6h1l3.8-9.6H34z" />
+                            <path opacity={hidden ? 0.125 : 1} fill="none" stroke={color} strokeWidth={1.6} d="M35,21V9.7" />
+                            <path opacity={hidden ? 0.125 : 1} fill={color} stroke="none" fillRule="evenodd" d="M31.3,18.5l3.3,7.1h0.9l3.3-7.1H31.3z" />
                         </>
                     )}
                     {(vertSpeed >= 500) && (
                         <>
-                            <path opacity={hidden ? 0.125 : 1} fill="none" stroke={color} strokeWidth={2.75} d="M38.3,9.5v17.4" />
-                            <path opacity={hidden ? 0.125 : 1} fill={color} stroke="none" fillRule="evenodd" d="M42.6,15.5l-3.8-9.6h-1L34,15.5H42.6z" />
+                            <path opacity={hidden ? 0.125 : 1} fill="none" stroke={color} strokeWidth={1.6} d="M35,14.2v11.3" />
+                            <path opacity={hidden ? 0.125 : 1} fill={color} stroke="none" fillRule="evenodd" d="M31.3,18.5l3.3,7.1h0.9l3.3-7.1H31.3z" />
                         </>
                     )}
                 </g>

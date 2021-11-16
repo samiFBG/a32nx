@@ -34,6 +34,8 @@ export class NDTcasTraffic {
 
     heading: number;
 
+    hrzDistance: number;
+
     intrusionLevel: TaRaIntrusion;
 
     posX?: number;
@@ -50,6 +52,7 @@ export class NDTcasTraffic {
         this.vertSpeed = traffic.vertSpeed;
         this.heading = traffic.heading;
         this.intrusionLevel = traffic.intrusionLevel;
+        this.hrzDistance = traffic.hrzDistance;
     }
 }
 
@@ -107,6 +110,8 @@ export class TcasTraffic {
 
     slantDistance: number;
 
+    hrzDistance: number;
+
     closureRate: number;
 
     closureAccel: number;
@@ -136,6 +141,7 @@ export class TcasTraffic {
         this.relativeAlt = tf.alt * 3.281 - alt;
         this.heading = tf.heading;
         this.slantDistance = MathUtils.computeDistance3D(tf.lat, tf.lon, tf.alt * 3.281, ppos.lat, ppos.long, alt);
+        this.hrzDistance = MathUtils.computeGreatCircleDistance(ppos.lat, ppos.long, tf.lat, tf.lon);
         this.onGround = false;
         this.groundSpeed = 0;
         this.isDisplayed = false;
@@ -440,12 +446,10 @@ export class TcasComputer implements TcasComponent {
                 }
             }
 
-            const horizontalDistance = MathUtils.computeGreatCircleDistance(this.ppos.lat, this.ppos.long, traffic.lat, traffic.lon);
-
             if (isDisplayed) {
                 const bearing = MathUtils.computeGreatCircleHeading(this.ppos.lat, this.ppos.long, traffic.lat, traffic.lon) - this.trueHeading + 90;
-                const x = horizontalDistance * Math.cos(bearing * Math.PI / 180);
-                const y = horizontalDistance * Math.sin(bearing * Math.PI / 180);
+                const x = traffic.hrzDistance * Math.cos(bearing * Math.PI / 180);
+                const y = traffic.hrzDistance * Math.sin(bearing * Math.PI / 180);
 
                 // TODO: Extend at higher altitudes
                 // x^2 / xLim ^2 + y^2 / yLim ^2 <= 1
@@ -467,7 +471,7 @@ export class TcasComputer implements TcasComponent {
             } else if (traffic.taTau < TCAS.TAU[this.sensitivity.getVar()][TaRaIndex.TA]
                     || traffic.slantDistance < TCAS.DMOD[this.sensitivity.getVar()][TaRaIndex.TA]) {
                 intrusionLevel[Intrude.RANGE] = TaRaIntrusion.TA;
-            } else if (horizontalDistance < 6) {
+            } else if (traffic.hrzDistance < 6) {
                 intrusionLevel[Intrude.RANGE] = TaRaIntrusion.PROXIMITY;
             }
 

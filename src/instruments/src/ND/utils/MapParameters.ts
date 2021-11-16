@@ -26,22 +26,9 @@ export class MapParameters {
         this.nmRadius = nmRadius;
     }
 
-    coordinatesToXYy(coordinates: Coordinates): Xy {
+    coordinatesToXYy(coordinates: Coordinates): [number, number] {
         const bearing = Avionics.Utils.computeGreatCircleHeading(this.centerCoordinates, coordinates) - this.mapUpTrueDeg - 90;
         const distance = Avionics.Utils.computeGreatCircleDistance(this.centerCoordinates, coordinates);
-
-        const xNm = distance * Math.cos(bearing * Math.PI / 180);
-        const yNm = distance * Math.sin(bearing * Math.PI / 180);
-
-        return [
-            xNm * this.nmToPx,
-            yNm * this.nmToPx,
-        ];
-    }
-
-    coordinatesToXYyLimit(coordinates: Coordinates): Xy {
-        const bearing = Avionics.Utils.computeGreatCircleHeading(this.centerCoordinates, coordinates) - this.mapUpTrueDeg - 90;
-        const distance = Math.min(Avionics.Utils.computeGreatCircleDistance(this.centerCoordinates, coordinates), this.nmRadius);
 
         const xNm = distance * Math.cos(bearing * Math.PI / 180);
         const yNm = distance * Math.sin(bearing * Math.PI / 180);

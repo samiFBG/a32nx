@@ -1,7 +1,8 @@
-import React, { FC } from 'react';
+import React, { FC, useState } from 'react';
 import { Layer } from '@instruments/common/utils';
 import { useSimVar } from '@instruments/common/simVars';
-import { Mode } from '@shared/NavigationDisplay';
+import { EfisSide, Mode, NdTraffic } from '@shared/NavigationDisplay';
+import { useCoherentEvent } from '@instruments/common/hooks';
 
 /*
 Messages in priority order, from 1-12 (full set with ATSAW and nice weather radar)
@@ -20,10 +21,10 @@ Messages in priority order, from 1-12 (full set with ATSAW and nice weather rada
 
 interface TcasWxrMessage {
     text: string;
-    color: 'White' | 'Amber';
+    color: 'White' | 'Amber' | 'Red';
 }
 
-export const TcasWxrMessages: FC<{ modeIndex: Mode }> = ({ modeIndex }) => {
+export const TcasWxrMessages: FC<{ side: EfisSide, modeIndex: Mode, airTraffic: NdTraffic[] }> = ({ side, modeIndex, airTraffic }) => {
     // TODO get data and decide what to display
 
     let leftMessage: TcasWxrMessage | undefined;
@@ -31,11 +32,24 @@ export const TcasWxrMessages: FC<{ modeIndex: Mode }> = ({ modeIndex }) => {
 
     const [tcasOnly] = useSimVar('L:A32NX_TCAS_TA_ONLY', 'boolean', 200);
     const [tcasFault] = useSimVar('L:A32NX_TCAS_FAULT', 'boolean', 200);
+    const [offScreenL] = useSimVar(`L:A32NX_TCAS_${side}_OFF_SCREEN_L`, 'number', 200);
+    const [offScreenR] = useSimVar(`L:A32NX_TCAS_${side}_OFF_SCREEN_R`, 'number', 200);
+
+    const trafficL: NdTraffic | undefined = airTraffic.find((p) => p && parseInt(p.ID) === offScreenL);
+    const trafficR: NdTraffic | undefined = airTraffic.find((p) => p && parseInt(p.ID) === offScreenR);
 
     if (tcasFault) {
         leftMessage = { text: 'TCAS', color: 'Amber' };
+    } else if (airTraffic && trafficL && offScreenL !== -1) {
+        leftMessage = { text: `${trafficL.hrzDistance.toFixed(2)}NM+${trafficL.relativeAlt}`, color: (trafficL.intrusionLevel === 3) ? 'Red' : 'Amber'};
+    } else if (airTraffic && trafficR && offScreenR !== -1) {
+        leftMessage = { text: `${trafficR.hrzDistance.toFixed(2)}NM+${trafficR.relativeAlt}`, color: (trafficR.intrusionLevel === 3) ? 'Red' : 'Amber'};
     } else if (tcasOnly) {
         leftMessage = { text: 'TA ONLY', color: 'White' };
+    }
+
+    if (trafficL && trafficR) {
+        rightMessage = { text: `${trafficR.hrzDistance.toFixed(2)}NM+${trafficR.relativeAlt}`, color: (trafficR.intrusionLevel === 3) ? 'Red' : 'Amber'};
     }
 
     if (modeIndex !== Mode.ARC && modeIndex !== Mode.ROSE_NAV && modeIndex !== Mode.ROSE_VOR && modeIndex !== Mode.ROSE_ILS || (!leftMessage && !rightMessage)) {
