@@ -111,7 +111,7 @@ export const RoseMode: FC<RoseModeProps> = ({ symbols, adirsAlign, rangeSetting,
                             )}
                         </g>
                     )}
-                    { mode === Mode.ROSE_NAV && <Traffic x={361.5} y={368} mapParams={mapParams} />}
+                    <Traffic mode={mode} mapParams={mapParams} />
                     <RadioNeedle index={1} side={side} displayMode={mode} centreHeight={384} />
                     <RadioNeedle index={2} side={side} displayMode={mode} centreHeight={384} />
                 </g>
