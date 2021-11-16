@@ -1,5 +1,4 @@
 /* eslint-disable camelcase */
-import { useCoherentEvent } from '@instruments/common/hooks';
 import { useSimVar } from '@instruments/common/simVars';
 import React, { useEffect, FC, useState, useReducer, memo } from 'react';
 import { Layer } from '@instruments/common/utils';
@@ -9,7 +8,6 @@ import { MathUtils } from '@shared/MathUtils';
 import { EfisSide, Mode, NdTraffic } from '@shared/NavigationDisplay';
 import { usePersistentProperty } from '@instruments/common/persistence';
 import { MapParameters } from '../utils/MapParameters';
-import { TcasWxrMessages } from './messages/TcasWxrMessages';
 
 interface OffTraffic {
     distance: number;
@@ -371,14 +369,18 @@ const TrafficIndicatorDebug: FC<TrafficPropDebug> = memo(({ x, y, relativeAlt, v
                     </text>
                     {(vertSpeed <= -500) && (
                         <>
+                            <path className="shadow" fill="none" strokeWidth={3} d="M35,21V9.7" />
+                            <path className="shadow" stroke="none" fillRule="evenodd" d="M31.3,18.5l3.3,7.1h0.9l3.3-7.1H31.3z" />
                             <path opacity={hidden ? 0.125 : 1} fill="none" stroke={color} strokeWidth={1.6} d="M35,21V9.7" />
                             <path opacity={hidden ? 0.125 : 1} fill={color} stroke="none" fillRule="evenodd" d="M31.3,18.5l3.3,7.1h0.9l3.3-7.1H31.3z" />
                         </>
                     )}
                     {(vertSpeed >= 500) && (
                         <>
+                            <path className="shadow" fill="none" strokeWidth={3} d="M35,14.2v11.3" />
+                            <path className="shadow" stroke="none" fillRule="evenodd" d="M38.7,16.7l-3.3-7.1h-0.9l-3.3,7.1H38.7z" />
                             <path opacity={hidden ? 0.125 : 1} fill="none" stroke={color} strokeWidth={1.6} d="M35,14.2v11.3" />
-                            <path opacity={hidden ? 0.125 : 1} fill={color} stroke="none" fillRule="evenodd" d="M31.3,18.5l3.3,7.1h0.9l3.3-7.1H31.3z" />
+                            <path opacity={hidden ? 0.125 : 1} fill={color} stroke="none" fillRule="evenodd" d="M38.7,16.7l-3.3-7.1h-0.9l-3.3,7.1H38.7z" />
                         </>
                     )}
                 </g>
