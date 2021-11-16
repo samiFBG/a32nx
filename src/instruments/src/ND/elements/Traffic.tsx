@@ -40,7 +40,6 @@ export type TcasProps = {
 
 export const Traffic: FC<TcasProps> = ({ mode, mapParams }) => {
     const [airTraffic, setAirTraffic] = useState<NDTraffic[]>([]);
-    const [tcasMode] = useSimVar('L:A32NX_SWITCH_TCAS_Position', 'number', 200);
     const [latLong] = useState<Coordinates>({ lat: NaN, long: NaN });
     const [debug] = usePersistentProperty('TCAS_DEBUG', '0');
     const [sensitivity] = useSimVar('L:A32NX_TCAS_SENSITIVITY', 'number', 200);

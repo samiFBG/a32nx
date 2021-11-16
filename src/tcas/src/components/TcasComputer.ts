@@ -202,11 +202,9 @@ export class TcasComputer implements TcasComponent {
 
     private isSlewActive: boolean; // Slew Mode on?
 
+    private simRate: number; // Simulation Rate
+
     private ppos: LatLongData; // Plane PPOS
-
-    private _pposLatLong: LatLong; // avoiding GC
-
-    private _trafficPpos: LatLong;
 
     private altitude: Arinc429Word | null; // ADR1/2 Altitude
 
@@ -259,8 +257,6 @@ export class TcasComputer implements TcasComponent {
         this.updateThrottler = new UpdateThrottler(TCAS.REFRESH_RATE); // P5566074 pg 11:45
         this.inhibitions = Inhibit.NONE;
         this.ppos = { lat: NaN, long: NaN };
-        this._pposLatLong = new LatLong(NaN, NaN);
-        this._trafficPpos = new LatLong(NaN, NaN);
         this._newRa = new ResAdvisory(null, false, 0, false);
         this.advisoryState = TcasState.NONE;
         this.sendAirTraffic = [];
@@ -280,13 +276,13 @@ export class TcasComputer implements TcasComponent {
         this.tcasThreat = SimVar.GetSimVarValue('L:A32NX_SWITCH_TCAS_Traffic_Position', 'number');
         this.xpdrStatus = SimVar.GetSimVarValue('TRANSPONDER STATE:1', 'number'); // TODO: refactor When XPDR2 is implemented
         this.activeXpdr = SimVar.GetSimVarValue('L:A32NX_SWITCH_ATC', 'number'); // TODO: refactor When XPDR2 is implemented
-        // TODO FIXME:  workaround for altitude issues due to MSFS bug, needs to be changed to PRESSURE ALTITUDE again when solved
-        this.pressureAlt = SimVar.GetSimVarValue('INDICATED ALTITUDE:3', 'feet');
+        this.pressureAlt = SimVar.GetSimVarValue('PRESSURE ALTITUDE', 'feet');
         this.radioAlt = SimVar.GetSimVarValue('PLANE ALT ABOVE GROUND', 'feet');
         this.altitude = Arinc429Word.fromSimVarValue(`L:A32NX_ADIRS_ADR_${this.activeXpdr + 1}_ALTITUDE`);
         this.altitudeStandby = Arinc429Word.fromSimVarValue('L:A32NX_ADIRS_ADR_3_ALTITUDE');
         this.trueHeading = SimVar.GetSimVarValue('PLANE HEADING DEGREES TRUE', 'degrees');
         this.isSlewActive = !!SimVar.GetSimVarValue('IS SLEW ACTIVE', 'boolean');
+        this.simRate = SimVar.GetGlobalVarValue('SIMULATION RATE', 'number');
         this.gpwsWarning = !!SimVar.GetSimVarValue('L:A32NX_GPWS_Warning_Active', 'boolean');
 
         this.tcasMode.setVar((this.xpdrStatus === XpdrMode.STBY || !this.tcasPower) ? TcasMode.STBY : this.tcasSwitchPos);
@@ -1050,7 +1046,7 @@ export class TcasComputer implements TcasComponent {
     update(_deltaTime: number): void {
         this.soundManager.update(_deltaTime);
 
-        const deltaTime = this.updateThrottler.canUpdate(_deltaTime);
+        const deltaTime = this.updateThrottler.canUpdate(_deltaTime * (this.simRate || 1));
         if (deltaTime === -1) {
             return;
         }
