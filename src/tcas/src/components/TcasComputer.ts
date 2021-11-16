@@ -76,7 +76,7 @@ export class TcasTraffic {
 
     closureRate: number;
 
-    // closureAccel: number;
+    closureAccel: number;
 
     intrusionLevel: TaRaIntrusion;
 
@@ -147,6 +147,8 @@ export class TcasComputer implements TcasComponent {
 
     private xpdrStatus: number; // Active XPDR ON/OFF
 
+    private tcasPower: boolean; // is TCAS computer powered?
+
     private tcasSwitchPos: number; // TCAS Switch position STBY/TA/TARA
 
     private tcasMode: LocalSimVar<TcasMode>; // TCAS S/MODE TODO FIXME: ARINC429
@@ -206,6 +208,7 @@ export class TcasComputer implements TcasComponent {
 
     init(): void {
         SimVar.SetSimVarValue('L:A32NX_TCAS_STATE', 'Enum', 0);
+        this.tcasPower = false;
         this.tcasMode = new LocalSimVar('L:A32NX_TCAS_MODE', 'Enum');
         this.tcasState = new LocalSimVar('L:A32NX_TCAS_STATE', 'Enum');
         this.tcasFault = new LocalSimVar('L:A32NX_TCAS_FAULT', 'bool');
@@ -232,6 +235,7 @@ export class TcasComputer implements TcasComponent {
         this.ppos.lat = SimVar.GetSimVarValue('PLANE LATITUDE', 'degree latitude');
         this.ppos.long = SimVar.GetSimVarValue('PLANE LONGITUDE', 'degree longitude');
 
+        this.tcasPower = !!SimVar.GetSimVarValue('A32NX_ELEC_DC_1_BUS_IS_POWERED', 'boolean');
         this.tcasSwitchPos = SimVar.GetSimVarValue('L:A32NX_SWITCH_TCAS_Position', 'number');
         this.tcasThreat = SimVar.GetSimVarValue('L:A32NX_SWITCH_TCAS_Traffic_Position', 'number');
         this.xpdrStatus = SimVar.GetSimVarValue('TRANSPONDER STATE:1', 'number'); // TODO: refactor When XPDR2 is implemented
@@ -243,9 +247,9 @@ export class TcasComputer implements TcasComponent {
         this.altitudeStandby = Arinc429Word.fromSimVarValue('L:A32NX_ADIRS_ADR_3_ALTITUDE');
         this.trueHeading = SimVar.GetSimVarValue('PLANE HEADING DEGREES TRUE', 'degrees');
         this.isSlewActive = !!SimVar.GetSimVarValue('IS SLEW ACTIVE', 'boolean');
-        this.gpwsWarning = !!SimVar.GetSimVarValue('L:A32NX_GPWS_Warning_Active', 'bool');
+        this.gpwsWarning = !!SimVar.GetSimVarValue('L:A32NX_GPWS_Warning_Active', 'boolean');
 
-        this.tcasMode.setVar((this.xpdrStatus === XpdrMode.STBY) ? TcasMode.STBY : this.tcasSwitchPos);
+        this.tcasMode.setVar((this.xpdrStatus === XpdrMode.STBY || !this.tcasPower) ? TcasMode.STBY : this.tcasSwitchPos);
     }
 
     /**
@@ -283,8 +287,8 @@ export class TcasComputer implements TcasComponent {
 
             // Amber TCAS warning on fault (and on PFD) - 34-43-00:A24/34-43-010
             if (!this.altitude || !this.altitudeStandby
-                || !this.altitude.isNormalOperation() || !this.altitudeStandby.isNormalOperation()
-                || this.altitude.value - this.altitudeStandby.value > 300) {
+                    || !this.altitude.isNormalOperation() || !this.altitudeStandby.isNormalOperation()
+                    || this.altitude.value - this.altitudeStandby.value > 300) {
                 this.tcasFault.setVar(true);
             } else {
                 this.tcasFault.setVar(false);
@@ -331,10 +335,10 @@ export class TcasComputer implements TcasComponent {
                 const newAlt = tf.alt * 3.281;
                 traffic.vertSpeed = (newAlt - traffic.alt) / (_deltaTime / 1000) * 60; // feet per minute
                 const newSlantDist = MathUtils.computeDistance3D([traffic.lat, traffic.lon, traffic.alt], [this.ppos.lat, this.ppos.long, this.pressureAlt]);
-                // const newClosureRate = (traffic.slantDistance - newSlantDist) / (_deltaTime / 1000) * 3600;
-                // traffic.closureAccel = (newClosureRate - traffic.closureRate) / (_deltaTime / 1000);
-                // traffic.closureRate = newClosureRate;
-                traffic.closureRate = (traffic.slantDistance - newSlantDist) / (_deltaTime / 1000) * 3600; // knots per hour
+                const newClosureRate = (traffic.slantDistance - newSlantDist) / (_deltaTime / 1000) * 3600; // knots per hour
+                traffic.closureAccel = (newClosureRate - traffic.closureRate) / (_deltaTime / 1000);
+                traffic.closureRate = newClosureRate;
+                // traffic.closureRate = (traffic.slantDistance - newSlantDist) / (_deltaTime / 1000) * 3600; // knots per hour
                 traffic.slantDistance = newSlantDist;
                 traffic.lat = tf.lat;
                 traffic.lon = tf.lon;
@@ -927,7 +931,21 @@ export class TcasComputer implements TcasComponent {
             this.activeRa.secondsSinceStart += _deltaTime / 1000;
             if (!this.activeRa.hasBeenAnnounced) {
                 console.log('RA Intruders: ');
-                console.log(this.raTraffic);
+                console.log(' ================================ ');
+                this.raTraffic.forEach((traffic) => {
+                    console.log(` id | ${traffic.ID}`);
+                    console.log(` alt | ${traffic.alt}`);
+                    console.log(` rAlt | ${traffic.relativeAlt}`);
+                    console.log(` sDist | ${traffic.slantDistance}`);
+                    console.log(` bearing | ${Avionics.Utils.computeGreatCircleHeading(this._pposLatLong, { lat: traffic.lat, long: traffic.lon })}`);
+                    console.log(` hDist | ${Avionics.Utils.computeGreatCircleDistance(this._pposLatLong, { lat: traffic.lat, long: traffic.lon })}`);
+                    console.log(` closureRate | ${traffic.closureRate}`);
+                    console.log(` closureAccel | ${traffic.closureAccel}`);
+                    console.log(` RA TAU | ${traffic.raTau} <<< : ${TCAS.TAU[this.sensitivity][TaRaIndex.RA]}`);
+                    console.log(` V TAU | ${traffic.vTau} <<< : ${TCAS.TAU[this.sensitivity][TaRaIndex.TA]}`);
+                    console.log(` TA TAU | ${traffic.taTau} <<< : ${TCAS.TAU[this.sensitivity][TaRaIndex.RA]}`);
+                    console.log(' ================================ ');
+                });
                 console.log('TCAS: RA GENERATED: ', this.activeRa.info.callout);
 
                 if (this.activeRa.info.callout.repeat) {
@@ -952,14 +970,21 @@ export class TcasComputer implements TcasComponent {
 
     private emitDisplay(): void {
         this.sendAirTraffic.length = 0;
-        this.airTraffic
+        const sentAirTraffic = this.airTraffic
             .filter((traffic) => traffic.alive === true && traffic.isDisplayed === true)
-            .sort((a, b) => b.intrusionLevel - a.intrusionLevel || a.raTau - b.raTau || a.taTau - b.taTau || a.slantDistance - b.slantDistance)
+            .sort((a, b) => b.intrusionLevel - a.intrusionLevel || a.raTau - b.raTau || a.taTau - b.taTau || a.slantDistance - b.slantDistance);
             // Limit number of contacts displayed to 8
-            .forEach((traffic: TcasTraffic, index) => {
-                if (index >= 8) return;
-                this.sendAirTraffic.push(new NDTcasTraffic(traffic));
-            });
+        sentAirTraffic.forEach((traffic: TcasTraffic, index) => {
+            if (index >= 8) return;
+            this.sendAirTraffic.push(new NDTcasTraffic(traffic));
+        });
+        this.raTraffic.forEach((tf) => {
+            const traffic: TcasTraffic | undefined = sentAirTraffic.find((p) => p && p.ID === tf.ID);
+            if (!traffic) {
+                console.log(`ERROR: RA ${tf.ID} NOT SENT`);
+            }
+        });
+
         this.sendListener.triggerToAllSubscribers('A32NX_TCAS_TRAFFIC', this.sendAirTraffic);
     }
 
